@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>邏思起子 · 填寫可上班時間</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0e0e12;
+  --surface: #16161d;
+  --surface2: #1e1e28;
+  --border: #2a2a38;
+  --accent: #7c6af7;
+  --accent2: #f7c26a;
+  --accent3: #6af7c2;
+  --text: #e8e8f0;
+  --text2: #8888a8;
+  --danger: #f76a6a;
+  --success: #6af7a0;
+  --pending: #f7c26a;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC',sans-serif; min-height:100vh; }
+
+.header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 28px; background:var(--surface); border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:50;
+}
+.logo { font-family:'Space Mono',monospace; font-size:13px; font-weight:700; color:var(--accent); letter-spacing:0.05em; }
+.header-right { display:flex; align-items:center; gap:12px; }
+
+.main { max-width: 900px; margin: 0 auto; padding: 28px 20px 60px; }
+
+/* Name selector */
+.name-select-wrap { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:24px; margin-bottom:24px; }
+.section-label { font-size:11px; color:var(--text2); letter-spacing:0.1em; text-transform:uppercase; font-weight:600; margin-bottom:14px; }
+.name-grid { display:flex; flex-wrap:wrap; gap:8px; }
+.name-btn {
+  padding:8px 18px; border-radius:20px; border:1px solid var(--border);
+  background:var(--surface2); color:var(--text2); font-size:13px; cursor:pointer;
+  transition:all 0.15s; font-family:'Noto Sans TC',sans-serif;
+}
+.name-btn:hover { border-color:var(--accent); color:var(--accent); }
+.name-btn.active { background:var(--accent); border-color:var(--accent); color:white; font-weight:600; }
+
+/* Week selector */
+.week-bar {
+  display:flex; align-items:center; gap:12px; margin-bottom:24px;
+  background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px 20px;
+}
+.week-btn { width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:var(--surface2); color:var(--text); cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
+.week-btn:hover { border-color:var(--accent); color:var(--accent); }
+.week-label { font-size:15px; font-weight:600; flex:1; text-align:center; }
+.week-sub { font-size:11px; color:var(--text2); }
+
+/* Legend */
+.legend { display:flex; gap:16px; margin-bottom:20px; flex-wrap:wrap; }
+.legend-item { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--text2); }
+.legend-dot { width:12px; height:12px; border-radius:3px; }
+
+/* Avail table */
+.avail-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden; margin-bottom:24px; }
+.avail-table { width:100%; border-collapse:collapse; }
+.avail-table th {
+  padding:12px 8px; font-size:11px; font-weight:600; color:var(--text2);
+  letter-spacing:0.05em; text-align:center; border-bottom:1px solid var(--border);
+  border-right:1px solid var(--border); background:var(--surface2);
+}
+.avail-table th:last-child { border-right:none; }
+.avail-table th.time-th { text-align:left; padding-left:16px; min-width:72px; }
+.avail-table td { border-bottom:1px solid var(--border); border-right:1px solid var(--border); padding:4px; }
+.avail-table td:last-child { border-right:none; }
+.avail-table tr:last-child td { border-bottom:none; }
+.avail-table td.time-td { padding:8px 16px; font-family:'Space Mono',monospace; font-size:11px; color:var(--text2); background:var(--surface2); vertical-align:middle; }
+
+.slot-btn {
+  width:100%; min-height:48px; border-radius:8px; border:1px solid var(--border);
+  background:transparent; cursor:pointer; transition:all 0.15s;
+  font-family:'Noto Sans TC',sans-serif; font-size:11px; color:var(--text2);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:2px; padding:4px;
+}
+.slot-btn:hover { border-color:var(--accent); background:rgba(124,106,247,0.08); }
+.slot-btn.avail { background:rgba(124,106,247,0.18); border-color:var(--accent); color:var(--accent); font-weight:600; }
+.slot-btn.scheduled { background:rgba(106,247,160,0.12); border-color:var(--success); color:var(--success); cursor:default; }
+.slot-btn.pending-slot { background:rgba(247,194,106,0.12); border-color:var(--pending); color:var(--pending); }
+.slot-btn.unavail { background:rgba(255,255,255,0.02); }
+.slot-icon { font-size:14px; }
+.slot-note { font-size:9px; color:var(--text2); max-width:56px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; text-align:center; }
+
+/* Note input */
+.note-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:200; }
+.note-modal-overlay.open { display:flex; }
+.note-modal { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:24px; width:340px; }
+.note-modal h4 { font-size:15px; margin-bottom:6px; }
+.note-modal p { font-size:12px; color:var(--text2); margin-bottom:16px; }
+.note-input { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; color:var(--text); font-size:13px; font-family:'Noto Sans TC',sans-serif; resize:none; outline:none; }
+.note-input:focus { border-color:var(--accent); }
+.note-actions { display:flex; gap:8px; margin-top:14px; justify-content:flex-end; }
+
+/* Buttons */
+.btn { padding:9px 20px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.15s; border:1px solid transparent; font-family:'Noto Sans TC',sans-serif; }
+.btn-primary { background:var(--accent); color:white; border-color:var(--accent); }
+.btn-primary:hover { opacity:0.85; }
+.btn-outline { background:transparent; color:var(--text); border-color:var(--border); }
+.btn-outline:hover { border-color:var(--accent); color:var(--accent); }
+.btn-success { background:var(--success); color:#0e1a12; border-color:var(--success); }
+.btn-success:hover { opacity:0.9; }
+.btn-sm { padding:6px 14px; font-size:12px; }
+
+/* Save bar */
+.save-bar {
+  position:fixed; bottom:0; left:0; right:0;
+  background:var(--surface); border-top:1px solid var(--border);
+  padding:14px 28px; display:flex; align-items:center; gap:16px;
+  z-index:100;
+}
+.save-status { font-size:12px; color:var(--text2); flex:1; }
+
+/* Toast */
+.toast { position:fixed; top:72px; right:24px; background:var(--surface2); border:1px solid var(--accent); border-radius:10px; padding:12px 18px; font-size:13px; transform:translateY(-20px); opacity:0; transition:all 0.3s; z-index:999; }
+.toast.show { transform:translateY(0); opacity:1; }
+
+/* Special notes section */
+.special-wrap { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px; margin-bottom:80px; }
+.special-label { font-size:12px; color:var(--text2); margin-bottom:10px; }
+.special-input { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; color:var(--text); font-size:13px; font-family:'Noto Sans TC',sans-serif; resize:vertical; outline:none; min-height:70px; }
+.special-input:focus { border-color:var(--accent); }
+
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+.fade-in { animation:fadeIn 0.3s ease forwards; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">ROSTART · 小天使填班</div>
+  <div class="header-right">
+    <span id="header-name" style="font-size:13px;color:var(--text2)">請選擇姓名</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- Step 1: 選名字 -->
+  <div class="name-select-wrap">
+    <div class="section-label">📌 選擇你的名字</div>
+    <div class="name-grid" id="name-grid"></div>
+  </div>
+
+  <!-- Step 2: 選週次 -->
+  <div class="week-bar">
+    <button class="week-btn" onclick="changeWeek(-1)">‹</button>
+    <div>
+      <div class="week-label" id="week-label-main">請先選擇姓名</div>
+      <div class="week-sub" id="week-sub">每次填寫以一週為單位</div>
+    </div>
+    <button class="week-btn" onclick="changeWeek(1)">›</button>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:rgba(124,106,247,0.5);border:1px solid var(--accent)"></div>可以上班</div>
+    <div class="legend-item"><div class="legend-dot" style="background:rgba(247,194,106,0.3);border:1px solid var(--pending)"></div>預排中（待確認）</div>
+    <div class="legend-item"><div class="legend-dot" style="background:rgba(106,247,160,0.2);border:1px solid var(--success)"></div>已排班（不可更改）</div>
+    <div class="legend-item"><div class="legend-dot" style="background:rgba(255,255,255,0.04);border:1px solid var(--border)"></div>不能上班</div>
+  </div>
+
+  <!-- Availability Grid -->
+  <div class="avail-card fade-in" id="avail-card">
+    <table class="avail-table" id="avail-table">
+      <thead>
+        <tr>
+          <th class="time-th">時段</th>
+          <!-- day headers injected by JS -->
+        </tr>
+      </thead>
+      <tbody id="avail-body"></tbody>
+    </table>
+  </div>
+
+  <!-- Special notes -->
+  <div class="special-wrap">
+    <div class="section-label">📝 特殊情況備註</div>
+    <div class="special-label">如有請假、早退、特殊限制等，請在此說明</div>
+    <textarea class="special-input" id="special-note" placeholder="例如：4/15 下午有事需要提早離開、這週只能週末排班..."></textarea>
+  </div>
+
+</div>
+
+<!-- Save bar -->
+<div class="save-bar">
+  <div class="save-status" id="save-status">尚未儲存</div>
+  <button class="btn btn-outline btn-sm" onclick="clearWeek()">清除本週</button>
+  <button class="btn btn-success" onclick="saveAndSync()">✓ 儲存並同步 Google Sheets</button>
+</div>
+
+<!-- Note modal -->
+<div class="note-modal-overlay" id="note-modal">
+  <div class="note-modal">
+    <h4 id="note-modal-title">備註此時段</h4>
+    <p id="note-modal-sub">可填寫特殊情況（例：需要提早離開、只能第一場）</p>
+    <textarea class="note-input" id="note-input" rows="3" placeholder="選填備註..."></textarea>
+    <div class="note-actions">
+      <button class="btn btn-outline btn-sm" onclick="closeNoteModal()">取消</button>
+      <button class="btn btn-primary btn-sm" onclick="saveNote()">確認</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────
+const STAFF_LIST = [
+  { id:1,  name:'阿梅',    store:'信義', themes:['迷霧島'] },
+  { id:2,  name:'逸彤',    store:'信義', themes:['永春醫院','血色古堡'] },
+  { id:3,  name:'七七',    store:'信義', themes:['辛亥隧道','傑克'] },
+  { id:4,  name:'怡琳',    store:'信義', themes:['辛亥隧道'] },
+  { id:5,  name:'聿涵',    store:'信義', themes:['囚聲','迷霧島'] },
+  { id:6,  name:'竹竹',    store:'信義', themes:['囚聲','辛亥隧道','永春醫院'] },
+  { id:7,  name:'彼得',    store:'信義', themes:['囚聲','辛亥隧道'] },
+  { id:8,  name:'布丁',    store:'信義', themes:['囚聲','辛亥隧道','傑克'] },
+  { id:9,  name:'LALA',   store:'信義', themes:['辛亥隧道','永春醫院'] },
+  { id:10, name:'JUDY',   store:'信義', themes:['迷霧島','傑克','囚聲'] },
+  { id:11, name:'思瑋',   store:'信義', themes:['迷霧島'] },
+  { id:12, name:'喬伊',   store:'信義', themes:['迷霧島','傑克'] },
+  { id:13, name:'龎APANG',store:'信義', themes:['迷霧島','傑克'] },
+  { id:14, name:'嘿哩',   store:'信義', themes:['傑克'] },
+  { id:15, name:'花花',   store:'松山', themes:['辛亥隧道','傑克','血色古堡'] },
+  { id:16, name:'GARY',   store:'松山', themes:['創世紀','辛亥隧道'] },
+  { id:17, name:'祥祥',   store:'信義', themes:['永春醫院'] },
+  { id:18, name:'小葵',   store:'信義', themes:['囚聲','迷霧島'] },
+  { id:19, name:'阿咩',   store:'信義', themes:['永春醫院','傑克'] },
+  { id:20, name:'豆干',   store:'信義', themes:['囚聲','傑克','永春醫院'] },
+];
+
+const TIMES = ['09:00','11:00','13:00','15:00','17:00','19:00','21:00'];
+const DAYS_TW = ['一','二','三','四','五','六','日'];
+
+// State
+let currentStaff = null;
+let weekOffset = 1; // default: next week
+let availability = {}; // key: "staffId-weekOffset-day-time" → { state: 'avail'|'unavail'|'pending'|'scheduled', note: '' }
+let editingSlot = null;
+
+// Simulate some pre-filled scheduled slots
+function getScheduled(staffId, weekOff, day, timeIdx) {
+  // Simulate a few scheduled slots
+  const seed = (staffId * 7 + day * 3 + timeIdx + weekOff) % 11;
+  return seed === 0;
+}
+function getPending(staffId, weekOff, day, timeIdx) {
+  const seed = (staffId * 5 + day * 4 + timeIdx + weekOff) % 13;
+  return seed === 1;
+}
+
+// ── WEEK HELPERS ──────────────────────────────────────────
+function getWeekDates(offset) {
+  const now = new Date();
+  const mon = new Date(now);
+  mon.setDate(now.getDate() - (now.getDay()||7) + 1 + offset*7);
+  return Array.from({length:7}, (_,i) => { const d=new Date(mon); d.setDate(mon.getDate()+i); return d; });
+}
+function fmtDate(d) { return `${d.getMonth()+1}/${d.getDate()}`; }
+function fmtWeekLabel(offset) {
+  const dates = getWeekDates(offset);
+  const labels = ['本週','下週','下下週'];
+  const prefix = offset >= 1 && offset <= 2 ? labels[offset] : '';
+  return `${prefix ? prefix+'（' : ''}${dates[0].getFullYear()} ${fmtDate(dates[0])} – ${fmtDate(dates[6])}${prefix ? '）' : ''}`;
+}
+
+// ── RENDER ────────────────────────────────────────────────
+function renderNameGrid() {
+  const grid = document.getElementById('name-grid');
+  grid.innerHTML = STAFF_LIST.map(s =>
+    `<button class="name-btn ${currentStaff?.id===s.id?'active':''}" onclick="selectStaff(${s.id})">${s.name}</button>`
+  ).join('');
+}
+
+function selectStaff(id) {
+  currentStaff = STAFF_LIST.find(s=>s.id===id);
+  document.getElementById('header-name').textContent = currentStaff.name + ' · ' + currentStaff.store + '店';
+  renderNameGrid();
+  renderGrid();
+  document.getElementById('save-status').textContent = `${currentStaff.name} · 尚未儲存`;
+}
+
+function changeWeek(delta) {
+  if(!currentStaff) { showToast('請先選擇你的名字'); return; }
+  weekOffset = Math.max(1, Math.min(4, weekOffset + delta));
+  renderGrid();
+}
+
+function renderGrid() {
+  if(!currentStaff) return;
+  const dates = getWeekDates(weekOffset);
+  document.getElementById('week-label-main').textContent = fmtWeekLabel(weekOffset);
+
+  // Header
+  const thead = document.querySelector('#avail-table thead tr');
+  // remove old day headers
+  while(thead.children.length > 1) thead.removeChild(thead.lastChild);
+  dates.forEach((d,i) => {
+    const th = document.createElement('th');
+    th.innerHTML = `${DAYS_TW[i]}<br><span style="font-family:'Space Mono',monospace;font-size:10px">${fmtDate(d)}</span>`;
+    thead.appendChild(th);
+  });
+
+  // Body
+  const tbody = document.getElementById('avail-body');
+  tbody.innerHTML = '';
+  TIMES.forEach((time, ti) => {
+    const tr = document.createElement('tr');
+    const tdTime = document.createElement('td');
+    tdTime.className = 'time-td';
+    tdTime.textContent = time;
+    tr.appendChild(tdTime);
+
+    dates.forEach((d, di) => {
+      const key = `${currentStaff.id}-${weekOffset}-${di}-${ti}`;
+      const saved = availability[key];
+      let state = saved?.state || 'unavail';
+      const note = saved?.note || '';
+
+      // Override with scheduled/pending from server (simulated)
+      if(getScheduled(currentStaff.id, weekOffset, di, ti)) state = 'scheduled';
+      else if(getPending(currentStaff.id, weekOffset, di, ti) && state==='unavail') state = 'pending';
+
+      const td = document.createElement('td');
+      td.innerHTML = buildSlotBtn(key, state, note, time, di, ti);
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+function buildSlotBtn(key, state, note, time, di, ti) {
+  const icons = { avail:'✓', unavail:'', scheduled:'🔒', pending:'△' };
+  const labels = { avail:'可以', unavail:'', scheduled:'已排班', pending:'預排中' };
+  const locked = state === 'scheduled';
+  const onclick = locked ? '' : `toggleSlot('${key}', '${state}', ${di}, ${ti})`;
+  const onrightclick = locked ? '' : `event.preventDefault(); openNoteModal('${key}', ${di}, ${ti})`;
+  return `<button class="slot-btn ${state==='avail'?'avail':state==='scheduled'?'scheduled':state==='pending'?'pending-slot':'unavail'}"
+    onclick="${onclick}"
+    oncontextmenu="${onrightclick}"
+    title="${locked?'已排班，無法更改':'左鍵切換可排，右鍵新增備註'}">
+    <span class="slot-icon">${icons[state]||''}</span>
+    ${labels[state] ? `<span style="font-size:11px">${labels[state]}</span>` : ''}
+    ${note ? `<span class="slot-note">📝 ${note}</span>` : ''}
+  </button>`;
+}
+
+function toggleSlot(key, currentState, di, ti) {
+  if(!currentStaff) return;
+  const newState = currentState === 'avail' ? 'unavail' : 'avail';
+  if(!availability[key]) availability[key] = { state:'unavail', note:'' };
+  availability[key].state = newState;
+  renderGrid();
+  document.getElementById('save-status').textContent = `${currentStaff.name} · 有未儲存的變更`;
+}
+
+// ── NOTE MODAL ────────────────────────────────────────────
+function openNoteModal(key, di, ti) {
+  editingSlot = { key, di, ti };
+  const existing = availability[key]?.note || '';
+  const dates = getWeekDates(weekOffset);
+  document.getElementById('note-modal-title').textContent = `備註 ${DAYS_TW[di]} ${fmtDate(dates[di])}`;
+  document.getElementById('note-modal-sub').textContent = `時段：${TIMES[ti]}`;
+  document.getElementById('note-input').value = existing;
+  document.getElementById('note-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('note-input').focus(), 100);
+}
+
+function closeNoteModal() {
+  document.getElementById('note-modal').classList.remove('open');
+  editingSlot = null;
+}
+
+function saveNote() {
+  if(!editingSlot) return;
+  const note = document.getElementById('note-input').value.trim();
+  const key = editingSlot.key;
+  if(!availability[key]) availability[key] = { state:'unavail', note:'' };
+  availability[key].note = note;
+  // Auto-mark as avail if adding note
+  if(note && availability[key].state === 'unavail') availability[key].state = 'avail';
+  closeNoteModal();
+  renderGrid();
+  showToast('✓ 備註已儲存');
+}
+
+// ── SAVE ──────────────────────────────────────────────────
+function saveAndSync() {
+  if(!currentStaff) { showToast('請先選擇你的名字'); return; }
+
+  // Collect data for this staff + week
+  const dates = getWeekDates(weekOffset);
+  const rows = [];
+  TIMES.forEach((time, ti) => {
+    dates.forEach((d, di) => {
+      const key = `${currentStaff.id}-${weekOffset}-${di}-${ti}`;
+      const state = availability[key]?.state || 'unavail';
+      const note = availability[key]?.note || '';
+      rows.push({
+        name: currentStaff.name,
+        store: currentStaff.store,
+        date: `${d.getFullYear()}/${fmtDate(d)}`,
+        day: DAYS_TW[di],
+        time,
+        available: state === 'avail' ? '✓' : state === 'pending' ? '△' : '',
+        note
+      });
+    });
+  });
+
+  // In real version: POST to Google Sheets API
+  // For now: simulate + show CSV download
+  const csv = '姓名,店點,日期,星期,時段,可上班,備註\n' +
+    rows.map(r => `${r.name},${r.store},${r.date},${r.day},${r.time},${r.available},${r.note}`).join('\n');
+
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `可排時間_${currentStaff.name}_${fmtWeekLabel(weekOffset).replace(/[\/\s·（）]/g,'_')}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  document.getElementById('save-status').textContent = `${currentStaff.name} · 已儲存 ✓ （${new Date().toLocaleTimeString('zh-TW')}）`;
+  showToast('✓ 已儲存並匯出！連接 Google Sheets 後可自動同步');
+}
+
+function clearWeek() {
+  if(!currentStaff) return;
+  if(!confirm('確定要清除本週所有填寫嗎？')) return;
+  const keys = Object.keys(availability).filter(k => k.startsWith(`${currentStaff.id}-${weekOffset}-`));
+  keys.forEach(k => delete availability[k]);
+  renderGrid();
+  showToast('已清除本週填寫');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 3000);
+}
+
+// ── INIT ──────────────────────────────────────────────────
+renderNameGrid();
+// Default week label
+document.getElementById('week-label-main').textContent = '← 請先選擇你的名字';
+</script>
+</body>
+</html>

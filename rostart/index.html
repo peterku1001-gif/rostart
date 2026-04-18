@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>邏思起子 · 排班後台 V5.12</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d0d11;
+  --s1:#141418;--s2:#1a1a22;--s3:#22222e;
+  --b1:#252532;--b2:#32324a;
+  --accent:#7c6af7;--accent-g:linear-gradient(135deg,#7c6af7,#a855f7);
+  --松山:#f5a623;--松山-d:rgba(245,166,35,.14);
+  --信義:#6e9ef5;--信義-d:rgba(110,158,245,.14);
+  --囚聲:#b07af7;--囚聲-d:rgba(176,122,247,.14);
+  --ok:#4ade80;--ok-d:rgba(74,222,128,.1);
+  --warn:#f87171;--warn-d:rgba(248,113,113,.1);
+  --pend:#fbbf24;--pend-d:rgba(251,191,36,.1);
+  --text:#e2e2ee;--t2:#9090b0;--t3:#55556a;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-serif;min-height:100vh;font-size:13px;}
+
+/* ── HEADER ── */
+.hdr{height:48px;background:var(--s1);border-bottom:1px solid var(--b1);display:flex;align-items:center;padding:0 20px;position:sticky;top:0;z-index:100;gap:0;}
+.hdr-logo{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.06em;margin-right:20px;flex-shrink:0;}
+.hdr-nav{display:flex;gap:2px;}
+.hn{padding:6px 13px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;color:var(--t2);border:none;background:transparent;font-family:'Noto Sans TC',sans-serif;transition:all .15s;}
+.hn:hover{color:var(--text);background:var(--s2);}
+.hn.on{color:var(--text);background:var(--s2);}
+.hsp{flex:1;}
+.hdr-btns{display:flex;gap:6px;}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid transparent;font-family:'Noto Sans TC',sans-serif;white-space:nowrap;transition:all .15s;}
+.btn-ghost{background:var(--s2);color:var(--t2);border-color:var(--b1);}
+.btn-ghost:hover{color:var(--text);border-color:var(--b2);}
+.btn-accent{background:var(--accent);color:#fff;}
+.btn-accent:hover{opacity:.88;}
+.btn-magic{background:var(--accent-g);color:#fff;box-shadow:0 2px 12px rgba(124,106,247,.3);}
+.btn-magic:hover{transform:translateY(-1px);box-shadow:0 4px 18px rgba(124,106,247,.4);}
+.btn-green{background:#166534;color:#4ade80;border-color:#166534;}
+.btn-green:hover{background:#14532d;}
+.btn-sheets{background:#0a5c2e;color:#34d399;border-color:#0a5c2e;}
+.btn-sheets:hover{background:#064e27;}
+.btn-sm{padding:4px 10px;font-size:11px;}
+.btn-icon{width:28px;height:28px;padding:0;justify-content:center;border-radius:6px;}
+
+/* ── PAGES ── */
+.pg{display:none;padding:20px 20px 60px;}
+.pg.on{display:block;}
+
+/* ── STAT CARDS ── */
+.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:18px;}
+.sc{background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:14px 16px;}
+.sc-lbl{font-size:9px;color:var(--t2);letter-spacing:.09em;text-transform:uppercase;font-weight:700;margin-bottom:5px;}
+.sc-val{font-size:24px;font-weight:700;font-family:'Space Mono',monospace;line-height:1;}
+.sc-sub{font-size:10px;color:var(--t2);margin-top:4px;}
+.sc-names{font-size:10px;color:var(--warn);margin-top:4px;line-height:1.8;}
+.sc.ok .sc-val{color:var(--ok);}
+.sc.warn .sc-val{color:var(--warn);}
+.sc.pend .sc-val{color:var(--pend);}
+.sc.blue .sc-val{color:var(--accent);}
+
+/* ── PROGRESS ── */
+.prog{height:2px;background:var(--b1);border-radius:2px;overflow:hidden;margin-bottom:16px;}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--ok));transition:width .5s;}
+
+/* ── THEME CHIPS ── */
+.tchips{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;}
+.tc{padding:4px 11px;border-radius:14px;font-size:11px;font-weight:500;cursor:pointer;border:1px solid var(--b1);color:var(--t2);transition:all .15s;}
+.tc:hover{color:var(--text);}
+.tc.on{color:#fff;border-color:transparent;}
+.tc.松山.on{background:var(--松山);color:#1a1000;}
+.tc.信義.on{background:var(--accent);color:#fff;}
+
+/* ── CALENDAR ── */
+.cal-hdr{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.cal-title{font-size:14px;font-weight:700;}
+.cal-wrap{background:var(--s1);border:1px solid var(--b1);border-radius:10px;overflow:hidden;}
+.cal-head{display:grid;grid-template-columns:repeat(7,1fr);background:var(--s2);border-bottom:1px solid var(--b1);}
+.ch{padding:7px 4px;text-align:center;font-size:10px;font-weight:600;color:var(--t2);border-right:1px solid var(--b1);}
+.ch:last-child{border-right:none;}
+.cal-body{display:grid;grid-template-columns:repeat(7,1fr);}
+.cc{border-right:1px solid var(--b1);border-bottom:1px solid var(--b1);padding:5px 5px 6px;min-height:72px;}
+.cc:nth-child(7n){border-right:none;}
+.cc.dim{background:rgba(255,255,255,.01);}
+.cc.tday{background:rgba(124,106,247,.05);}
+.cdate{font-size:10px;font-weight:600;font-family:'Space Mono',monospace;margin-bottom:3px;display:flex;align-items:center;}
+.cdate.wknd{color:var(--warn);}
+.cdate.tnow{background:var(--accent);color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:9px;}
+.cpill{padding:2px 4px;border-radius:3px;margin-bottom:2px;font-size:9px;line-height:1.35;border-left:2px solid transparent;}
+.cpill.ok{background:var(--ok-d);border-left-color:var(--ok);}
+.cpill.miss{background:var(--warn-d);border-left-color:var(--warn);}
+.cpill.pre{background:var(--pend-d);border-left-color:var(--pend);opacity:.75;}
+.cp-time{font-family:'Space Mono',monospace;font-size:8px;color:var(--t2);}
+.cp-name{font-size:9px;font-weight:600;}
+.cp-name.ok{color:var(--ok);}
+.cp-name.miss{color:var(--warn);}
+.cp-name.pre{color:var(--pend);}
+.cmore{font-size:8px;color:var(--t3);padding:1px 3px;}
+
+/* ── SCHEDULE ── */
+.sched-top{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+.week-nav{display:flex;align-items:center;gap:4px;}
+.wn-btn{width:28px;height:28px;border-radius:6px;border:1px solid var(--b1);background:var(--s2);color:var(--text);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.wn-btn:hover{border-color:var(--accent);color:var(--accent);}
+.wn-lbl{font-size:12px;font-weight:600;min-width:150px;text-align:center;color:var(--text);}
+
+.day-tabs{display:flex;gap:3px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px;}
+.dt{padding:5px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;border:1px solid var(--b1);background:var(--s2);color:var(--t2);white-space:nowrap;transition:all .15s;flex-shrink:0;}
+.dt:hover{color:var(--text);}
+.dt.on{border-color:var(--accent);color:var(--text);}
+.dt.iss{color:var(--warn);border-color:rgba(248,113,113,.3);}
+
+/* ── SCHED TABLE ── */
+.st-wrap{overflow-x:auto;}
+.st{border-collapse:collapse;width:100%;min-width:700px;background:var(--s1);}
+.st th{background:var(--s2);border:1px solid var(--b1);padding:8px 6px;font-size:10px;font-weight:700;text-align:center;color:var(--t2);letter-spacing:.03em;}
+.st th.th-松山{color:var(--松山);}
+.st th.th-信義{color:var(--信義);}
+.st th.th-囚聲{color:var(--囚聲);}
+.st td{border:1px solid var(--b1);}
+
+/* left meta cell */
+.lmeta{background:var(--s2);padding:6px 10px;text-align:center;white-space:nowrap;min-width:62px;vertical-align:middle;}
+.lm-day{font-size:14px;font-weight:700;color:var(--t2);}
+.lm-idx{font-size:9px;color:var(--t3);font-family:'Space Mono',monospace;}
+.lm-badge{display:inline-block;font-size:8px;font-weight:700;padding:2px 5px;border-radius:3px;margin-top:3px;}
+.b早班{background:rgba(251,191,36,.15);color:var(--pend);}
+.b晚班{background:rgba(110,158,245,.15);color:var(--信義);}
+.b行政班{background:var(--ok-d);color:var(--ok);}
+.b開門{background:var(--warn-d);color:var(--warn);}
+
+/* time cell */
+.tcell{background:rgba(255,255,255,.015);padding:6px 7px;text-align:center;vertical-align:middle;}
+.sct{font-family:'Space Mono',monospace;font-size:11px;color:var(--t2);}
+.sct.bk{color:var(--text);font-weight:700;}
+.scp{font-size:8px;color:var(--t3);margin-top:1px;}
+
+/* staff cell */
+.stcell{padding:6px 7px;text-align:center;vertical-align:middle;}
+.chip-staff{display:inline-flex;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:700;}
+.chip-松山{background:var(--松山-d);color:var(--松山);}
+.chip-信義{background:var(--信義-d);color:var(--信義);}
+.chip-囚聲{background:var(--囚聲-d);color:var(--囚聲);}
+.chip-delta{font-size:15px;color:var(--pend);opacity:.6;}
+.chip-empty{font-size:10px;color:var(--warn);border:1px dashed rgba(248,113,113,.4);padding:2px 6px;border-radius:8px;}
+.chip-none{color:var(--t3);font-size:13px;}
+
+/* ── STAFF PAGE ── */
+.sfgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;}
+.sfc{background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:14px;cursor:pointer;transition:all .18s;}
+.sfc:hover{border-color:var(--b2);transform:translateY(-1px);}
+.sfc.no-fill{border-color:rgba(248,113,113,.35);}
+.sfc-name{font-size:14px;font-weight:700;margin-bottom:3px;}
+.sfc-row{display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;}
+.sbadge{padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;}
+.sbadge.松山{background:var(--松山-d);color:var(--松山);}
+.sbadge.信義{background:var(--信義-d);color:var(--信義);}
+.sfc-themes{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:10px;}
+.sft{padding:2px 7px;border-radius:3px;font-size:10px;background:var(--s2);border:1px solid var(--b1);color:var(--t2);}
+.sfc-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;}
+.ss{background:var(--s2);border-radius:6px;padding:6px 3px;text-align:center;}
+.ss-v{font-size:16px;font-weight:700;font-family:'Space Mono',monospace;}
+.ss-l{font-size:9px;color:var(--t2);margin-top:1px;}
+
+/* ── MODAL ── */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:400;backdrop-filter:blur(4px);}
+.ov.on{display:flex;}
+.modal{background:var(--s1);border:1px solid var(--b1);border-radius:13px;padding:22px;max-width:720px;width:94%;max-height:88vh;overflow-y:auto;}
+.mhdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.mtitle{font-size:15px;font-weight:700;}
+.mclose{width:26px;height:26px;border-radius:5px;border:1px solid var(--b1);background:var(--s2);color:var(--t2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .15s;}
+.mclose:hover{color:var(--warn);}
+
+/* avail table in modal */
+.avt{border-collapse:collapse;width:100%;min-width:480px;}
+.avt th{background:var(--s2);border:1px solid var(--b1);padding:7px 4px;font-size:10px;font-weight:700;text-align:center;color:var(--t2);}
+.avt td{border:1px solid var(--b1);padding:3px;}
+.avt .tl{background:var(--s2);padding:6px 8px;font-family:'Space Mono',monospace;font-size:9px;color:var(--t2);text-align:center;}
+.avslot{width:100%;height:28px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;}
+.avslot.av{background:rgba(124,106,247,.18);color:var(--accent);}
+.avslot.sk{background:var(--ok-d);color:var(--ok);}
+.avslot.no{background:rgba(255,255,255,.02);color:var(--t3);}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:22px;right:22px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;padding:10px 16px;font-size:12px;transform:translateY(50px);opacity:0;transition:all .3s;z-index:999;box-shadow:0 4px 20px rgba(0,0,0,.4);}
+.toast.on{transform:translateY(0);opacity:1;}
+</style>
+  <script src="https://apis.google.com/js/api.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-logo">ROSTART</div>
+  <div class="hdr-nav">
+    <button class="hn on" onclick="showPg('dash',this)">📊 儀表板</button>
+    <button class="hn" onclick="showPg('sched',this)">📋 班表</button>
+    <button class="hn" onclick="showPg('staff',this)">👥 員工</button>
+  </div>
+  <div class="hsp"></div>
+  <div class="hdr-btns">
+    <button id="auth-btn" class="btn btn-ghost btn-sm" onclick="requestAuth()">🔑 Google 授權</button>
+    <button class="btn btn-ghost btn-sm" onclick="syncCal()">⟳ 同步日曆</button>
+    <button class="btn btn-magic btn-sm" onclick="doMatch()">✦ 一鍵媒合</button>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="pg on" id="pg-dash">
+  <div class="stats">
+    <div class="sc"><div class="sc-lbl">當月場次</div><div class="sc-val" id="s-total">—</div><div class="sc-sub">兩店合計</div></div>
+    <div class="sc ok"><div class="sc-lbl">已完成排班</div><div class="sc-val" id="s-ok">—</div><div class="sc-sub">人員齊全</div></div>
+    <div class="sc warn"><div class="sc-lbl">未完成排班</div><div class="sc-val" id="s-bad">—</div><div class="sc-sub">需處理</div></div>
+    <div class="sc pend"><div class="sc-lbl">預排場次</div><div class="sc-val" id="s-pre">—</div><div class="sc-sub">△ 待確認</div></div>
+    <div class="sc blue"><div class="sc-lbl">已填時間</div><div class="sc-val" id="s-fill">—</div><div class="sc-sub" id="s-fill-sub"></div></div>
+    <div class="sc warn"><div class="sc-lbl">未填時間</div><div class="sc-val" id="s-nofill">—</div><div class="sc-names" id="s-nofill-names"></div></div>
+  </div>
+  <div class="prog"><div class="prog-fill" id="prog" style="width:0"></div></div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+    <div class="tchips" id="dash-chips" style="margin:0;flex:1"></div>
+    <button class="btn btn-sheets btn-sm" onclick="pushSheets('dash')">📊 上傳 Google Sheet</button>
+  </div>
+
+  <div class="cal-hdr">
+    <button class="btn btn-ghost btn-icon" onclick="prevMo()">‹</button>
+    <div class="cal-title" id="cal-title">—</div>
+    <button class="btn btn-ghost btn-icon" onclick="nextMo()">›</button>
+  </div>
+  <div class="cal-wrap" id="cal-wrap"></div>
+</div>
+
+<!-- SCHEDULE -->
+<div class="pg" id="pg-sched">
+  <div class="sched-top">
+    <div class="week-nav">
+      <button class="wn-btn" onclick="prevWk()">‹</button>
+      <div class="wn-lbl" id="wn-lbl">—</div>
+      <button class="wn-btn" onclick="nextWk()">›</button>
+    </div>
+    <div style="flex:1"></div>
+    <button class="btn btn-green btn-sm" onclick="exportCSV()">↓ 匯出 CSV</button>
+    <button class="btn btn-sheets btn-sm" onclick="pushSheets('sched')">📊 寫入 Google Sheet</button>
+  </div>
+  <div class="day-tabs" id="day-tabs"></div>
+  <div class="st-wrap" id="st-wrap"></div>
+</div>
+
+<!-- STAFF -->
+<div class="pg" id="pg-staff">
+  <div style="display:flex;gap:5px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
+    <div class="tchips" id="staff-chips" style="margin:0">
+      <div class="tc on" onclick="sfFilter('all',this)">全部</div>
+      <div class="tc 松山" onclick="sfFilter('松山',this)">松山店</div>
+      <div class="tc 信義" onclick="sfFilter('信義',this)">信義店</div>
+    </div>
+  </div>
+  <div class="sfgrid" id="sfgrid"></div>
+</div>
+
+<!-- MODAL -->
+<div class="ov" id="modal-ov">
+  <div class="modal">
+    <div class="mhdr">
+      <div class="mtitle" id="modal-ttl">—</div>
+      <button class="mclose" onclick="closeMo()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// ★★★ 請在這裡填入你的 Google API 設定 ★★★
+// ═══════════════════════════════════════════════════════
+const GAPI_CONFIG = {
+  clientId: '786523727452-ndcjk6gdo6qkraj18g48hd25p3nelrud.apps.googleusercontent.com',
+  sheetId:  '1A0cJrSqvaYhmWggJv1Dvjin6jD5WTv7tR1QXB_N0W7I',
+  calendars: {
+    '創世紀':   'rostart0720@gmail.com',
+    '血色古堡': 'ku07vhs0f5ttc92mcmh7ccfleg@group.calendar.google.com',
+    '傑克':     'c92s0ifg17qruln6jppsmblcns@group.calendar.google.com',
+    '迷霧島':   'dtejpkgq23pnfdkagelrpbsqb4@group.calendar.google.com',
+    '辛亥隧道': 'uhqn3vlhehn4ragu0ua4hut26c@group.calendar.google.com',
+    '永春醫院': '3232a1bc5d627f377bdac7950ab62d597d0ed0e3c3eaecfc43fd7a7e7b0763c0@group.calendar.google.com',
+    '囚聲':     'd72398e3bba4c109ff7cdcc6859fa9e1b9fbe4a0a631d8387770d2d20a02f6b6@group.calendar.google.com',
+  }
+};
+// ═══════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════
+const TH={
+  '創世紀':  {store:'松山',need:1,times:['09:40','11:50','14:00','16:10','18:20']},
+  '血色古堡':{store:'松山',need:1,times:['10:20','12:30','14:40','16:50','19:00']},
+  '傑克':    {store:'信義',need:1,times:['09:30','11:15','12:55','14:35','16:30','18:15','20:00']},
+  '迷霧島':  {store:'信義',need:2,times:['09:45','11:45','13:45','15:45','17:45','19:45']},
+  '辛亥隧道':{store:'信義',need:1,times:['09:40','11:25','13:10','15:00','16:50','18:35','20:20']},
+  '永春醫院':{store:'信義',need:1,times:['09:35','11:40','13:45','15:50','18:20','20:25']},
+  '囚聲':    {store:'信義',need:4,roles:['小天使','郭耀華角色','張阿達角色','黃士坤角色'],times:['09:30','12:55','16:15','19:40']},
+};
+const TN=Object.keys(TH);
+const DTW=['一','二','三','四','五','六','日'];
+const SL=['早班','晚班','行政班','行政班','行政班','開門','開門'];
+const T7=['09:00','11:00','13:00','15:00','17:00','19:00','21:00'];
+
+let staff=[
+  {id:1, name:'阿梅',    store:'信義',themes:['迷霧島'],                    max:4, filled:true},
+  {id:2, name:'逸彤',    store:'信義',themes:['永春醫院','血色古堡'],        max:5, filled:true},
+  {id:3, name:'七七',    store:'信義',themes:['辛亥隧道','傑克'],            max:5, filled:true},
+  {id:4, name:'怡琳',    store:'信義',themes:['辛亥隧道'],                   max:4, filled:true},
+  {id:5, name:'聿涵',    store:'信義',themes:['囚聲','迷霧島'],              max:4, filled:true},
+  {id:6, name:'竹竹',    store:'信義',themes:['囚聲','辛亥隧道','永春醫院'],max:5, filled:true},
+  {id:7, name:'彼得',    store:'信義',themes:['囚聲','辛亥隧道'],            max:5, filled:true},
+  {id:8, name:'布丁',    store:'信義',themes:['囚聲','辛亥隧道','傑克'],     max:4, filled:true},
+  {id:9, name:'LALA',   store:'信義',themes:['辛亥隧道','永春醫院'],         max:5, filled:true},
+  {id:10,name:'JUDY',   store:'信義',themes:['迷霧島','傑克','囚聲'],        max:5, filled:true},
+  {id:11,name:'思瑋',   store:'信義',themes:['迷霧島'],                      max:4, filled:true},
+  {id:12,name:'喬伊',   store:'信義',themes:['迷霧島','傑克'],               max:4, filled:true},
+  {id:13,name:'龎APANG',store:'信義',themes:['迷霧島','傑克'],               max:4, filled:true},
+  {id:14,name:'嘿哩',   store:'信義',themes:['傑克'],                        max:4, filled:true},
+  {id:15,name:'花花',   store:'松山',themes:['辛亥隧道','傑克','血色古堡'],  max:4, filled:true},
+  {id:16,name:'GARY',   store:'松山',themes:['創世紀','辛亥隧道'],           max:4, filled:true},
+  {id:17,name:'祥祥',   store:'信義',themes:['永春醫院'],                    max:4, filled:true},
+  {id:18,name:'小葵',   store:'信義',themes:['囚聲','迷霧島'],               max:4, filled:true},
+  {id:19,name:'阿咩',   store:'信義',themes:['永春醫院','傑克'],             max:4, filled:true},
+  {id:20,name:'豆干',   store:'信義',themes:['囚聲','傑克','永春醫院'],      max:4, filled:true},
+  {id:21,name:'昕昕',   store:'信義',themes:['迷霧島'],                      max:3, filled:false},
+  {id:22,name:'鴨鴨',   store:'信義',themes:['迷霧島','永春醫院'],           max:3, filled:false},
+];
+staff.forEach(s=>{
+  s.avail={};s.sched={};s.wk=0;
+  for(let d=0;d<7;d++)for(let t=0;t<7;t++)
+    s.avail[`${d}-${t}`]=s.filled&&Math.random()<(t===0||t===6?.2:.58);
+});
+
+let sessDB={};
+let calY=new Date().getFullYear(),calM=new Date().getMonth();
+let wkOff=0,selDay=Math.max(0,(new Date().getDay()||7)-1);
+let dashTheme=TN[0],sfFlt='all';
+
+// ═══════════════════════════════════════════════════════
+// SESSION HELPERS
+// ═══════════════════════════════════════════════════════
+function sk(y,m,d,th,si){return`${y}_${m}_${d}_${th}_${si}`;}
+function ensureMo(y,m){
+  const days=new Date(y,m+1,0).getDate();
+  TN.forEach(th=>{
+    TH[th].times.forEach((time,si)=>{
+      for(let d=1;d<=days;d++){
+        const k=sk(y,m,d,th,si);
+        if(!sessDB[k]){
+          const dow=new Date(y,m,d).getDay();
+          const wk=dow===0||dow===6;
+          const booked=Math.random()<(wk?.7:.4);
+          sessDB[k]={y,m,d,th,si,time,store:TH[th].store,
+            need:TH[th].need,booked,players:booked?2+Math.floor(Math.random()*5):0,
+            assigned:[],ok:false};
+        }
+      }
+    });
+  });
+}
+function moSess(y,m){ensureMo(y,m);return Object.values(sessDB).filter(s=>s.y===y&&s.m===m);}
+
+// week
+function wkDates(off){
+  const n=new Date(),mon=new Date(n);
+  mon.setDate(n.getDate()-(n.getDay()||7)+1+off*7);
+  return Array.from({length:7},(_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return d;});
+}
+function fd(d){return`${d.getMonth()+1}/${d.getDate()}`;}
+function isToday(d){const n=new Date();return d.getDate()===n.getDate()&&d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear();}
+function wkLabel(off){const d=wkDates(off);return`${fd(d[0])} – ${fd(d[6])}`;}
+
+// ═══════════════════════════════════════════════════════
+// STATS
+// ═══════════════════════════════════════════════════════
+function updStats(){
+  ensureMo(calY,calM);
+  const all=moSess(calY,calM);
+  const bk=all.filter(s=>s.booked);
+  const ok=bk.filter(s=>s.ok).length;
+  const nofill=staff.filter(s=>!s.filled);
+  const fill=staff.length-nofill.length;
+  document.getElementById('s-total').textContent=bk.length;
+  document.getElementById('s-ok').textContent=ok;
+  document.getElementById('s-bad').textContent=bk.length-ok;
+  document.getElementById('s-pre').textContent=all.filter(s=>!s.booked).length;
+  document.getElementById('s-fill').textContent=`${fill}/${staff.length}`;
+  document.getElementById('s-fill-sub').textContent=`共${staff.length}位員工`;
+  document.getElementById('s-nofill').textContent=nofill.length;
+  document.getElementById('s-nofill-names').textContent=nofill.length?nofill.map(s=>s.name).join('、'):'全員已填 ✓';
+  document.getElementById('prog').style.width=bk.length?Math.round(ok/bk.length*100)+'%':'0%';
+}
+
+// ═══════════════════════════════════════════════════════
+// THEME CHIPS (dashboard)
+// ═══════════════════════════════════════════════════════
+function buildDashChips(){
+  document.getElementById('dash-chips').innerHTML=TN.map(t=>{
+    const cls=TH[t].store==='松山'?'松山':'信義';
+    const on=t===dashTheme?'on':'';
+    return`<div class="tc ${cls} ${on}" onclick="setDashTheme('${t}',this)">${t}</div>`;
+  }).join('');
+}
+function setDashTheme(t,el){
+  dashTheme=t;
+  document.querySelectorAll('#dash-chips .tc').forEach(c=>c.classList.remove('on'));
+  el.classList.add('on');
+  renderCal();
+}
+
+// ═══════════════════════════════════════════════════════
+// CALENDAR
+// ═══════════════════════════════════════════════════════
+function prevMo(){calM--;if(calM<0){calM=11;calY--;}updStats();renderCal();}
+function nextMo(){calM++;if(calM>11){calM=0;calY++;}updStats();renderCal();}
+
+function renderCal(){
+  document.getElementById('cal-title').textContent=`${calY} 年 ${calM+1} 月`;
+  ensureMo(calY,calM);
+  const first=new Date(calY,calM,1),last=new Date(calY,calM+1,0);
+  let off=(first.getDay()||7)-1;
+  const cells=[];
+  for(let i=0;i<off;i++){const d=new Date(first);d.setDate(d.getDate()-off+i);cells.push({date:d,dim:true});}
+  for(let i=1;i<=last.getDate();i++)cells.push({date:new Date(calY,calM,i),dim:false});
+  while(cells.length%7){{const d=new Date(cells[cells.length-1].date);d.setDate(d.getDate()+1);cells.push({date:d,dim:true});}}
+
+  let html=`<div class="cal-head">${DTW.map(d=>`<div class="ch">${d}</div>`).join('')}</div><div class="cal-body">`;
+  cells.forEach(cell=>{
+    const today=isToday(cell.date);
+    const wknd=cell.date.getDay()===0||cell.date.getDay()===6;
+    const cls='cc'+(cell.dim?' dim':today?' tday':'');
+    const numCls='cdate'+(today?' tnow':wknd?' wknd':'');
+    let pills='';
+    if(!cell.dim){
+      const th=TH[dashTheme];
+      const daySess=th.times.map((t,si)=>{
+        const k=sk(cell.date.getFullYear(),cell.date.getMonth(),cell.date.getDate(),dashTheme,si);
+        return sessDB[k];
+      }).filter(Boolean);
+      // 顯示所有固定時段
+      const thInfo = TH[dashTheme];
+      thInfo.times.forEach((fixedTime, si) => {
+        const sess = daySess.find(s => s.si === si);
+        if(!sess || sess.booked !== true){
+          // 無預約 → 待預約（淡色）
+          pills+=`<div class="cpill pre"><div class="cp-time">${fixedTime}</div><div class="cp-name pre">待預約</div></div>`;
+        } else if(sess.ok){
+          // 有預約有排人 → 顯示人名
+          const names=sess.assigned.slice(0,2).join('·')+(sess.assigned.length>2?'…':'');
+          pills+=`<div class="cpill ok"><div class="cp-time">${sess.time||fixedTime}</div><div class="cp-name ok">${names}</div></div>`;
+        } else {
+          // 有預約沒排人 → 缺人
+          pills+=`<div class="cpill miss"><div class="cp-time">${sess.time||fixedTime}</div><div class="cp-name miss">缺人</div></div>`;
+        }
+      });
+
+    }
+    html+=`<div class="${cls}"><div class="${numCls}">${cell.date.getDate()}</div>${pills}</div>`;
+  });
+  html+=`</div>`;
+  document.getElementById('cal-wrap').innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════
+// AUTO MATCH — 10條規則
+//
+// 硬性（絕對執行）：
+//   規則1：主題資格     員工必須有該主題資格
+//   規則2：可排時段     員工必須填「可排」
+//   規則3：時段不衝突   同時段只能排一場
+//   規則4：每天上限     同一天最多4場（跨主題合計）
+//   規則5：每週上限     不超過個人週班數上限
+//
+// 軟性（盡量執行，實在排不到才放寬）：
+//   規則6：均衡分配     優先排本週班數最少的人
+//   規則7：避免天地班   同一天若只排1場，盡量讓前後有相鄰場次
+//   規則8：避免晚接隔天早  最後一場(≥19:30)排到的人，隔天第一場降低優先級
+//   規則9：辛亥連續場   同一人優先連排2-3場，最多4場
+//   規則10：永春醫院連續場 同一人優先連排，最多3場
+// ═══════════════════════════════════════════════════════
+
+const MAX_DAY = 4;
+const LATE_CUTOFF = '19:30';   // 規則8：幾點後算晚班
+const CONSEC_THEMES = {        // 規則9/10：連續場偏好
+  '辛亥隧道': {min:2, max:4},
+  '永春醫院': {min:2, max:3},
+};
+
+function doMatch(){
+  // 重置
+  staff.forEach(s=>{ s.sched={}; s.wk=0; s.dayCount={}; s.lastLate=null; });
+  Object.values(sessDB).forEach(s=>{ s.assigned=[]; s.ok=false; });
+
+  const bookedSess = Object.values(sessDB)
+    .filter(s=>s.booked)
+    .sort((a,b)=>{ // 同天按時間排序，跨天按日期
+      const da=new Date(a.y,a.m,a.d), db=new Date(b.y,b.m,b.d);
+      return da-db || a.time.localeCompare(b.time);
+    });
+
+  // ── 計分函式（軟性規則加權）──
+  function score(s, sess, di, dayKey){
+    let pts = 0;
+
+    // 規則6：本週班數越少 → 分數越高（均衡）
+    pts += (s.max - s.wk) * 10;
+
+    // 規則7：避免天地班 — 若當天已有其他場次 → 加分（連在一起比較好）
+    const dayUsed = s.dayCount[dayKey] || 0;
+    if(dayUsed > 0) pts += 15;
+
+    // 規則8：避免晚接隔天早 — 昨天有排晚班 → 扣分
+    if(s.lastLate){
+      const yesterday = new Date(sess.y, sess.m, sess.d);
+      yesterday.setDate(yesterday.getDate()-1);
+      if(s.lastLate.toDateString()===yesterday.toDateString() && sess.si===0){
+        pts -= 30; // 軟性降低優先級，不是完全排除
+      }
+    }
+
+    // 規則9/10：連續場偏好
+    const rule = CONSEC_THEMES[sess.th];
+    if(rule){
+      const alreadyToday = Object.keys(s.sched).filter(k=>{
+        return k.startsWith(`${di}-`) && s.sched[k]===sess.th;
+      }).length;
+      if(alreadyToday > 0 && alreadyToday < rule.max) pts += 25; // 已在跑連續場 → 加分繼續
+      if(alreadyToday >= rule.max) pts -= 50; // 超過上限 → 強力降分
+    }
+
+    return pts;
+  }
+
+  bookedSess.forEach(sess=>{
+    const dow    = new Date(sess.y, sess.m, sess.d).getDay();
+    const di     = dow===0 ? 6 : dow-1;
+    const dayKey = `${sess.y}_${sess.m}_${sess.d}`;
+
+    // 硬性過濾（規則1-5）
+    let cands = staff.filter(s=>{
+      const slotKey = `${di}-${sess.si}`;
+      const dayUsed = s.dayCount[dayKey] || 0;
+      return (
+        s.themes.includes(sess.th) &&
+        s.avail[slotKey] &&
+        !s.sched[slotKey] &&
+        dayUsed < MAX_DAY &&
+        s.wk < s.max
+      );
+    });
+
+    // 軟性排序（規則6-10）
+    cands.sort((a,b) => score(b,sess,di,dayKey) - score(a,sess,di,dayKey));
+
+    // 分配
+    cands.slice(0, sess.need).forEach(s=>{
+      const slotKey = `${di}-${sess.si}`;
+      s.sched[slotKey] = sess.th;
+      s.wk++;
+      s.dayCount[dayKey] = (s.dayCount[dayKey]||0) + 1;
+      sess.assigned.push(s.name);
+      // 規則8：記錄是否排了晚班
+      if(sess.time >= LATE_CUTOFF){
+        s.lastLate = new Date(sess.y, sess.m, sess.d);
+      }
+    });
+
+    sess.ok = sess.assigned.length >= sess.need;
+  });
+
+  const total   = bookedSess.length;
+  const matched = bookedSess.filter(s=>s.ok).length;
+  const missing = bookedSess.filter(s=>!s.ok).length;
+
+  updStats(); renderCal(); renderSchedTable(); renderSfGrid();
+  toast(`✦ 媒合完成！${matched}/${total} 場次配妥${missing>0?`，${missing} 場仍缺人`:' ✓'}`);
+}
+
+// ═══════════════════════════════════════════════════════
+// SCHEDULE TABLE
+// ═══════════════════════════════════════════════════════
+function prevWk(){wkOff--;renderSched();}
+function nextWk(){wkOff++;renderSched();}
+
+function renderSched(){
+  document.getElementById('wn-lbl').textContent=wkLabel(wkOff);
+  const dates=wkDates(wkOff);
+  document.getElementById('day-tabs').innerHTML=dates.map((d,i)=>{
+    const on=i===selDay?'on':'';
+    const hasMiss=Object.values(sessDB).some(s=>{
+      const dd=new Date(s.y,s.m,s.d);
+      return dd.toDateString()===d.toDateString()&&s.booked&&!s.ok;
+    });
+    return`<div class="dt ${on} ${hasMiss?'iss':''}" onclick="setDay(${i})">${DTW[i]} ${fd(d)}${isToday(d)?' ·今':''}</div>`;
+  }).join('');
+  renderSchedTable();
+}
+
+function setDay(i){selDay=i;renderSched();}
+
+function renderSchedTable(){
+  const dates=wkDates(wkOff);
+  const date=dates[selDay];
+  ensureMo(date.getFullYear(),date.getMonth());
+  const maxSc=Math.max(...TN.map(t=>TH[t].times.length));
+
+  // build header — 囚聲 gets 4 cols (one per role)
+  let thHtml=`<th style="min-width:64px">場次</th>`;
+  TN.forEach(t=>{
+    const store=TH[t].store;
+    const cls=t==='囚聲'?'th-囚聲':`th-${store}`;
+    if(t==='囚聲'){
+      const roles=TH[t].roles;
+      roles.forEach(r=>`${thHtml}`);
+      thHtml+=`<th class="${cls}" colspan="${roles.length}">${t}<br><span style="font-size:8px;opacity:.55">${store}</span></th>`;
+    }else{
+      thHtml+=`<th class="${cls}">${t}<br><span style="font-size:8px;opacity:.55">${store}</span></th>`;
+    }
+  });
+
+  let html=`<table class="st"><thead><tr>${thHtml}</tr>`;
+
+  // sub-header for 囚聲 roles
+  let subHtml=`<tr>`;
+  TN.forEach(t=>{
+    if(t==='囚聲'){
+      TH[t].roles.forEach(r=>{
+        subHtml+=`<th class="th-囚聲" style="font-size:9px;font-weight:500">${r}</th>`;
+      });
+    }else{
+      subHtml+=`<th></th>`;
+    }
+  });
+  subHtml+=`</tr>`;
+  html+=subHtml+`</thead><tbody>`;
+
+  for(let si=0;si<maxSc;si++){
+    if(!TN.some(t=>si<TH[t].times.length))continue;
+    const label=SL[si]||'行政班';
+
+    // time row
+    html+=`<tr><td class="lmeta" rowspan="2"><div class="lm-day">${DTW[selDay]}</div><div class="lm-idx">#${si+1}</div><span class="lm-badge b${label}">${label}</span></td>`;
+    TN.forEach(t=>{
+      const time=TH[t].times[si]||'';
+      const k=sk(date.getFullYear(),date.getMonth(),date.getDate(),t,si);
+      const sess=sessDB[k];
+      const bk=sess&&sess.booked;
+      const cols=t==='囚聲'?` colspan="${TH[t].roles.length}"`:'';
+      html+=`<td class="tcell"${cols}><div class="sct ${bk?'bk':''}">${time}</div>${bk?`<div class="scp">👤${sess.players}</div>`:''}</td>`;
+    });
+    html+=`</tr>`;
+
+    // staff row
+    html+=`<tr>`;
+    TN.forEach(t=>{
+      const k=sk(date.getFullYear(),date.getMonth(),date.getDate(),t,si);
+      const sess=sessDB[k];
+      if(t==='囚聲'){
+        const roles=TH[t].roles;
+        if(!sess){
+          roles.forEach(()=>{html+=`<td class="stcell"><span class="chip-none">—</span></td>`;});
+        }else{
+          roles.forEach((_,ri)=>{html+=`<td class="stcell">${staffChip(sess.assigned[ri],t,sess.booked)}</td>`;});
+        }
+      }else{
+        if(!sess){html+=`<td class="stcell"><span class="chip-none">—</span></td>`;}
+        else{html+=`<td class="stcell">${staffChip(sess.assigned[0],t,sess.booked)}</td>`;}
+      }
+    });
+    html+=`</tr>`;
+  }
+  html+=`</tbody></table>`;
+  document.getElementById('st-wrap').innerHTML=html;
+}
+
+function staffChip(name,theme,booked){
+  if(!booked)return`<span class="chip-delta">△</span>`;
+  if(!name)return`<span class="chip-empty">缺人</span>`;
+  const store=TH[theme].store;
+  const cls=theme==='囚聲'?'chip-囚聲':`chip-${store}`;
+  return`<span class="chip-staff ${cls}">${name}</span>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// STAFF
+// ═══════════════════════════════════════════════════════
+let sfFltVal='all';
+function sfFilter(val,el){
+  sfFltVal=val;
+  document.querySelectorAll('#staff-chips .tc').forEach(c=>c.classList.remove('on'));
+  el.classList.add('on');
+  renderSfGrid();
+}
+function renderSfGrid(){
+  const list=sfFltVal==='all'?staff:staff.filter(s=>s.store===sfFltVal);
+  document.getElementById('sfgrid').innerHTML=list.map(s=>{
+    const avail=Object.values(s.avail).filter(Boolean).length;
+    return`<div class="sfc ${s.filled?'':'no-fill'}" onclick="openMo(${s.id})">
+      <div class="sfc-name">${s.name}${!s.filled?'<span style="margin-left:6px;font-size:9px;background:var(--warn-d);color:var(--warn);padding:2px 5px;border-radius:3px;font-weight:700">未填</span>':''}</div>
+      <div class="sfc-row">
+        <span class="sbadge ${s.store}">${s.store}店</span>
+        <span style="font-size:10px;color:var(--t2)">上限${s.max}班</span>
+      </div>
+      <div class="sfc-themes">${s.themes.map(t=>`<span class="sft">${t}</span>`).join('')}</div>
+      <div class="sfc-stats">
+        <div class="ss"><div class="ss-v" style="color:var(--accent)">${avail}</div><div class="ss-l">可排</div></div>
+        <div class="ss"><div class="ss-v" style="color:var(--ok)">${s.wk||0}</div><div class="ss-l">已排</div></div>
+        <div class="ss"><div class="ss-v">${s.max-(s.wk||0)}</div><div class="ss-l">剩餘</div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openMo(id){
+  const s=staff.find(x=>x.id===id);
+  document.getElementById('modal-ttl').textContent=`${s.name} · 員工設定`;
+  const dates=wkDates(wkOff);
+
+  // Theme checkboxes
+  const themeChecks = TN.map(t=>{
+    const checked = s.themes.includes(t) ? 'checked' : '';
+    const store = TH[t].store;
+    const color = store==='松山' ? 'var(--松山)' : 'var(--信義)';
+    return `<label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:6px;background:var(--s2);border:1px solid var(--b1);cursor:pointer;transition:all .15s">
+      <input type="checkbox" value="${t}" ${checked} onchange="toggleTheme(${id},'${t}',this.checked)"
+        style="width:14px;height:14px;accent-color:var(--accent)">
+      <span style="font-size:12px;color:${color};font-weight:600">${t}</span>
+      <span style="font-size:10px;color:var(--t3)">${store}</span>
+    </label>`;
+  }).join('');
+
+  let html=`
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+    <span class="sbadge ${s.store}">${s.store}店</span>
+    <span style="font-size:10px;color:var(--t2);padding:3px 6px">本週已排 ${s.wk||0} 班</span>
+  </div>
+
+  <div style="margin-bottom:16px">
+    <div style="font-size:11px;font-weight:700;color:var(--t2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">主題資格（可多選）</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${themeChecks}</div>
+  </div>
+
+  <div style="margin-bottom:20px">
+    <div style="font-size:11px;font-weight:700;color:var(--t2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">每週班數上限</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <button onclick="adjMax(${id},-1)" style="width:28px;height:28px;border-radius:6px;border:1px solid var(--b1);background:var(--s2);color:var(--text);cursor:pointer;font-size:16px">−</button>
+      <span id="max-val-${id}" style="font-size:20px;font-weight:700;font-family:'Space Mono',monospace;min-width:32px;text-align:center">${s.max}</span>
+      <button onclick="adjMax(${id},1)" style="width:28px;height:28px;border-radius:6px;border:1px solid var(--b1);background:var(--s2);color:var(--text);cursor:pointer;font-size:16px">+</button>
+      <span style="font-size:11px;color:var(--t2)">班/週</span>
+    </div>
+  </div>
+
+  <div style="font-size:11px;font-weight:700;color:var(--t2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">本週可排時段</div>
+  <div style="overflow-x:auto"><table class="avt"><thead><tr>
+    <th>時段</th>${dates.map((d,i)=>`<th>${DTW[i]}<br><span style="font-family:'Space Mono',monospace;font-size:8px">${fd(d)}</span></th>`).join('')}
+  </tr></thead><tbody>`;
+
+  T7.forEach((time,ti)=>{
+    html+=`<tr><td class="tl">${time}</td>`;
+    for(let di=0;di<7;di++){
+      const k=`${di}-${ti}`;
+      const isSk=!!s.sched[k];
+      const isAv=s.avail[k];
+      const cls=isSk?'sk':isAv?'av':'no';
+      html+=`<td><div class="avslot ${cls}">${isSk?s.sched[k]:isAv?'可':''}</div></td>`;
+    }
+    html+=`</tr>`;
+  });
+  html+=`</tbody></table></div>`;
+  document.getElementById('modal-body').innerHTML=html;
+  document.getElementById('modal-ov').classList.add('on');
+}
+
+function toggleTheme(id, theme, checked){
+  const s = staff.find(x=>x.id===id);
+  if(checked){ if(!s.themes.includes(theme)) s.themes.push(theme); }
+  else { s.themes = s.themes.filter(t=>t!==theme); }
+  renderSfGrid();
+}
+
+function adjMax(id, delta){
+  const s = staff.find(x=>x.id===id);
+  s.max = Math.max(1, Math.min(7, s.max + delta));
+  const el = document.getElementById(`max-val-${id}`);
+  if(el) el.textContent = s.max;
+  renderSfGrid();
+}
+function closeMo(){document.getElementById('modal-ov').classList.remove('on');}
+
+// ═══════════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════════
+function exportCSV(){
+  const dates=wkDates(wkOff);
+  // Sheet 1: daily (圖一 format for each day)
+  let rows=[['班表輸出 - '+wkLabel(wkOff),'','','','','','','','','']];
+  dates.forEach((date,di)=>{
+    ensureMo(date.getFullYear(),date.getMonth());
+    rows.push([`${DTW[di]} ${fd(date)}`,...TN.flatMap(t=>t==='囚聲'?TH[t].roles:[t])]);
+    const maxSc=Math.max(...TN.map(t=>TH[t].times.length));
+    for(let si=0;si<maxSc;si++){
+      if(!TN.some(t=>si<TH[t].times.length))continue;
+      const timeRow=[SL[si]||'行政班'];
+      const staffRow=[`#${si+1}`];
+      TN.forEach(t=>{
+        const k=sk(date.getFullYear(),date.getMonth(),date.getDate(),t,si);
+        const sess=sessDB[k];
+        if(t==='囚聲'){
+          TH[t].roles.forEach((_,ri)=>{
+            timeRow.push(sess?sess.time:'');
+            staffRow.push(sess?(sess.assigned[ri]||( sess.booked?'缺人':'△')):'');
+          });
+        }else{
+          timeRow.push(sess?sess.time:'');
+          staffRow.push(sess?(sess.assigned[0]||(sess.booked?'缺人':'△')):'');
+        }
+      });
+      rows.push(timeRow);
+      rows.push(staffRow);
+    }
+    rows.push(Array(12).fill(''));
+  });
+
+  // Sheet 2 idea: staff rows
+  rows.push(['===員工班表===']);
+  rows.push(['姓名','店點',...dates.map((d,i)=>`${DTW[i]} ${fd(d)}`)]);
+  staff.forEach(s=>{
+    T7.forEach((time,ti)=>{
+      const row=[ti===0?s.name:'',ti===0?s.store:'',time];
+      for(let di=0;di<7;di++){
+        const k=`${di}-${ti}`;
+        row.push(s.sched[k]||(s.avail[k]?'預排':''));
+      }
+      rows.push(row);
+    });
+    rows.push(Array(10).fill(''));
+  });
+
+  const csv='\uFEFF'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`班表_${wkLabel(wkOff).replace(/[\s\/]/g,'_')}.csv`;
+  a.click();URL.revokeObjectURL(url);
+  toast('↓ 班表 CSV 已下載');
+}
+
+// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// GOOGLE AUTH
+// ═══════════════════════════════════════════════════════
+let gapiReady=false, gisReady=false, tokenClient=null, accessToken=null;
+
+function updateAuthBtn(){
+  const btn=document.getElementById('auth-btn');
+  if(!btn) return;
+  if(accessToken){ btn.textContent='✓ 已授權'; btn.style.color='#4ade80'; }
+  else { btn.textContent='🔑 Google 授權'; btn.style.color=''; }
+}
+
+function requestAuth(){
+  if(!window.google || !window.google.accounts){
+    toast('⏳ Google API 尚未載入，請稍候再試');
+    return;
+  }
+  if(typeof GAPI_CONFIG === 'undefined' || !GAPI_CONFIG.clientId){
+    toast('❌ GAPI_CONFIG 未設定');
+    return;
+  }
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GAPI_CONFIG.clientId,
+    scope: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/spreadsheets',
+    callback: (resp)=>{
+      if(resp.error){ toast('❌ 授權失敗：'+resp.error); return; }
+      accessToken = resp.access_token;
+      if(!gapiReady && window.gapi){
+        gapi.load('client', async()=>{
+          await gapi.client.init({});
+          await gapi.client.load('https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest');
+          await gapi.client.load('https://sheets.googleapis.com/$discovery/rest?version=v4');
+          gapiReady=true;
+          gapi.client.setToken({access_token: accessToken});
+          toast('✓ 授權成功！現在可以同步日曆');
+          updateAuthBtn();
+        });
+      } else {
+        gapi.client.setToken({access_token: accessToken});
+        toast('✓ 授權成功！現在可以同步日曆');
+        updateAuthBtn();
+      }
+      gisReady=true;
+    }
+  });
+  tokenClient.requestAccessToken({prompt: accessToken ? '' : 'consent'});
+}
+
+async function syncCal(){
+  if(!accessToken){
+    toast('⚠️ 請先點「Google 授權」再同步');
+    return;
+  }
+
+  // 顯示讀取動畫
+  const syncBtn = document.querySelector('[onclick="syncCal()"]');
+  const origText = syncBtn ? syncBtn.textContent : '';
+  if(syncBtn){ syncBtn.textContent = '⟳ 同步中...'; syncBtn.style.opacity='0.6'; syncBtn.disabled=true; }
+
+  try{
+    // 清除當月與下個月資料
+    const months = [[calY,calM],[calY,calM+1>11?0:calM+1]];
+    const nextY = calM+1>11 ? calY+1 : calY;
+    Object.keys(sessDB).forEach(k=>{
+      const s=sessDB[k];
+      if((s.y===calY&&s.m===calM)||(s.y===nextY&&s.m===(calM+1>11?0:calM+1))) delete sessDB[k];
+    });
+
+    // 同步範圍：當月1日 到 下個月底
+    const timeMin = new Date(calY,calM,1).toISOString();
+    const nextMonth = calM+1>11 ? 0 : calM+1;
+    const nextYear  = calM+1>11 ? calY+1 : calY;
+    const timeMax   = new Date(nextYear,nextMonth+1,0,23,59,59).toISOString();
+
+    let count=0;
+    const themeEntries = Object.entries(GAPI_CONFIG.calendars);
+
+    // 依序抓每個日曆（不並行，確保穩定）
+    for(let i=0; i<themeEntries.length; i++){
+      const [themeName, calId] = themeEntries[i];
+      if(!calId||calId.includes('填入')) continue;
+
+      // 更新按鈕進度
+      if(syncBtn) syncBtn.textContent = `⟳ 同步中 ${i+1}/${themeEntries.length}...`;
+
+      try{
+        const resp = await gapi.client.calendar.events.list({
+          calendarId:calId, timeMin, timeMax,
+          singleEvents:true, orderBy:'startTime', maxResults:500
+        });
+        (resp.result.items||[]).forEach(ev=>{
+          if(!ev.start) return;
+          if(!ev.start.dateTime) return; // 忽略全天事件
+          const evStart = new Date(ev.start.dateTime);
+          const thInfo = TH[themeName];
+          if(!thInfo) return;
+
+          const eventMins = evStart.getHours()*60+evStart.getMinutes();
+          let si = thInfo.times.findIndex(t=>{
+            const tMins = parseInt(t.split(':')[0])*60+parseInt(t.split(':')[1]);
+            return Math.abs(tMins-eventMins)<60;
+          });
+          if(si<0) si = thInfo.times.length;
+
+          const k = sk(evStart.getFullYear(),evStart.getMonth(),evStart.getDate(),themeName,si);
+          const desc = ev.description||'';
+          const pm = desc.match(/總人數[：:]\s*(\d+)/);
+          sessDB[k] = {
+            y:evStart.getFullYear(), m:evStart.getMonth(), d:evStart.getDate(),
+            th:themeName, si,
+            time: thInfo.times[si] || `${String(evStart.getHours()).padStart(2,'0')}:${String(evStart.getMinutes()).padStart(2,'0')}`,
+            store:thInfo.store, need:thInfo.need,
+            booked:true, players:pm?parseInt(pm[1]):2,
+            assigned:[], ok:false
+          };
+          count++;
+        });
+      }catch(e){ console.warn('日曆讀取失敗',themeName,e); }
+    }
+
+    updStats(); renderCal();
+    toast(`✓ 同步完成！共 ${count} 個預約場次（當月＋下個月）`);
+
+  }catch(e){
+    toast('❌ 同步失敗：'+e.message);
+  }finally{
+    // 恢復按鈕
+    if(syncBtn){ syncBtn.textContent=origText; syncBtn.style.opacity=''; syncBtn.disabled=false; }
+  }
+}
+
+async function pushSheets(ctx){
+  if(typeof GAPI_CONFIG === 'undefined' || !GAPI_CONFIG.clientId){
+    toast('請先填入 Google API 設定'); return;
+  }
+  if(!accessToken){requestAuth();return;}
+  if(!GAPI_CONFIG.sheetId||GAPI_CONFIG.sheetId.includes('填入')){
+    toast('❌ 請先填入 Google Sheet ID'); return;
+  }
+  toast('📊 寫入中...');
+  try{
+    const sid=GAPI_CONFIG.sheetId;
+    const dates=wkDates(wkOff);
+    // 每日排班
+    let d1=[['每日排班',wkLabel(wkOff)]];
+    dates.forEach((date,di)=>{
+      ensureMo(date.getFullYear(),date.getMonth());
+      d1.push([`${DTW[di]} ${fd(date)}`,...TN.flatMap(t=>t==='囚聲'?TH[t].roles:[t])]);
+      const maxSc=Math.max(...TN.map(t=>TH[t].times.length));
+      for(let si=0;si<maxSc;si++){
+        if(!TN.some(t=>si<TH[t].times.length))continue;
+        const tr=[SL[si]||'行政班'],sr=[`#${si+1}`];
+        TN.forEach(t=>{
+          const k=sk(date.getFullYear(),date.getMonth(),date.getDate(),t,si);
+          const sess=sessDB[k];
+          if(t==='囚聲'){TH[t].roles.forEach((_,ri)=>{tr.push(sess?sess.time:'');sr.push(sess?(sess.assigned[ri]||(sess.booked?'缺人':'△')):'');});}
+          else{tr.push(sess?sess.time:'');sr.push(sess?(sess.assigned[0]||(sess.booked?'缺人':'△')):'');}
+        });
+        d1.push(tr);d1.push(sr);
+      }
+      d1.push([]);
+    });
+    // 員工班表
+    let d2=[['員工班表',wkLabel(wkOff)],['姓名','店點',...dates.map((d,i)=>`${DTW[i]} ${fd(d)}`)]];
+    staff.forEach(s=>{
+      T7.forEach((time,ti)=>{
+        const row=[ti===0?s.name:'',ti===0?s.store:'',time];
+        for(let di=0;di<7;di++){const k=`${di}-${ti}`;row.push(s.sched[k]||(s.avail[k]?'預排':''));}
+        d2.push(row);
+      });
+      d2.push([]);
+    });
+    const clean=rows=>rows.map(row=>row.map(cell=>cell===null||cell===undefined?'':String(cell)));
+    await gapi.client.sheets.spreadsheets.values.update({
+      spreadsheetId:sid, range:"'每日排班'!A1",
+      valueInputOption:'USER_ENTERED', resource:{values:clean(d1)}
+    });
+    await gapi.client.sheets.spreadsheets.values.update({
+      spreadsheetId:sid, range:"'員工班表'!A1",
+      valueInputOption:'USER_ENTERED', resource:{values:clean(d2)}
+    });
+    toast('✓ 已寫入 Google Sheet！');
+  }catch(e){toast('❌ 寫入失敗：'+e.message);console.error(e);}
+}
+
+// ═══════════════════════════════════════════════════════
+// NAV
+// ═══════════════════════════════════════════════════════
+function showPg(name,btn){
+  document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.hn').forEach(b=>b.classList.remove('on'));
+  document.getElementById(`pg-${name}`).classList.add('on');
+  if(btn)btn.classList.add('on');
+  if(name==='dash'){updStats();buildDashChips();renderCal();}
+  if(name==='sched'){document.getElementById('wn-lbl').textContent=wkLabel(wkOff);renderSched();}
+  if(name==='staff')renderSfGrid();
+}
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('on');
+  setTimeout(()=>t.classList.remove('on'),3000);
+}
+
+// ═══════════════════════════════════════════════════════
+// GOOGLE AUTH
+// ═══════════════════════════════════════════════════════
+
+
+
+
+
+
+// 頁面載入完成後初始化 Google Auth
+window.addEventListener('load', function(){
+  if(typeof GAPI_CONFIG === 'undefined' || !GAPI_CONFIG.clientId) return;
+  
+  let gapiTimer = setInterval(()=>{
+    if(window.gapi){
+      clearInterval(gapiTimer);
+      gapi.load('client', async()=>{
+        await gapi.client.init({});
+        await gapi.client.load('https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest');
+        await gapi.client.load('https://sheets.googleapis.com/$discovery/rest?version=v4');
+        gapiReady = true;
+        console.log('✓ GAPI ready');
+      });
+    }
+  }, 200);
+
+  let gisTimer = setInterval(()=>{
+    if(window.google && window.google.accounts && window.google.accounts.oauth2){
+      clearInterval(gisTimer);
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GAPI_CONFIG.clientId,
+        scope: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/spreadsheets',
+        callback: (resp) => {
+          if(resp.error){ toast('❌ 授權失敗：' + resp.error); return; }
+          accessToken = resp.access_token;
+          gapi.client.setToken({access_token: accessToken});
+          gisReady = true;
+          updateAuthBtn();
+          toast('✓ Google 授權成功！現在可以同步日曆');
+        }
+      });
+      gisReady = true;
+      console.log('✓ GIS ready, tokenClient initialized');
+      updateAuthBtn();
+    }
+  }, 200);
+});
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+ensureMo(calY,calM);
+updStats();buildDashChips();renderCal();
+</script>
+</body>
+</html>
