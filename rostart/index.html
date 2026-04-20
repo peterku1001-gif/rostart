@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>邏思起子 · 排班後台 V5.13</title>
+<title>邏思起子 · 排班後台 V5.14</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -356,11 +356,8 @@ function ensureMo(y,m){
       for(let d=1;d<=days;d++){
         const k=sk(y,m,d,th,si);
         if(!sessDB[k]){
-          const dow=new Date(y,m,d).getDay();
-          const wk=dow===0||dow===6;
-          const booked=Math.random()<(wk?.7:.4);
           sessDB[k]={y,m,d,th,si,time,store:TH[th].store,
-            need:TH[th].need,booked,players:booked?2+Math.floor(Math.random()*5):0,
+            need:TH[th].need,booked:false,players:0,
             assigned:[],ok:false};
         }
       }
@@ -990,9 +987,24 @@ async function pushSheets(ctx){
   if(!GAPI_CONFIG.sheetId||GAPI_CONFIG.sheetId.includes('填入')){
     toast('❌ 請先填入 Google Sheet ID'); return;
   }
-  toast('📊 寫入中...');
+  toast('📊 確認分頁中...');
   try{
     const sid=GAPI_CONFIG.sheetId;
+    const requiredSheets=['每日排班','員工班表'];
+
+    // ── 確認分頁存在，不存在就自動建立 ──
+    const metaResp = await gapi.client.sheets.spreadsheets.get({spreadsheetId:sid});
+    const existing = (metaResp.result.sheets||[]).map(s=>s.properties.title);
+    const toAdd = requiredSheets.filter(name=>!existing.includes(name));
+    if(toAdd.length>0){
+      toast(`📋 自動建立分頁：${toAdd.join('、')}...`);
+      await gapi.client.sheets.spreadsheets.batchUpdate({
+        spreadsheetId:sid,
+        resource:{requests: toAdd.map(title=>({addSheet:{properties:{title}}}))}
+      });
+    }
+
+    toast('📊 寫入中...');
     const dates=wkDates(wkOff);
     // 每日排班
     let d1=[['每日排班',wkLabel(wkOff)]];
@@ -1006,8 +1018,8 @@ async function pushSheets(ctx){
         TN.forEach(t=>{
           const k=sk(date.getFullYear(),date.getMonth(),date.getDate(),t,si);
           const sess=sessDB[k];
-          if(t==='囚聲'){TH[t].roles.forEach((_,ri)=>{tr.push(sess?sess.time:'');sr.push(sess?(sess.assigned[ri]||(sess.booked?'缺人':'△')):'');});}
-          else{tr.push(sess?sess.time:'');sr.push(sess?(sess.assigned[0]||(sess.booked?'缺人':'△')):'');}
+          if(t==='囚聲'){TH[t].roles.forEach((_,ri)=>{tr.push(sess&&sess.booked?sess.time:'');sr.push(sess&&sess.booked?(sess.assigned[ri]||'缺人'):'');});}
+          else{tr.push(sess&&sess.booked?sess.time:'');sr.push(sess&&sess.booked?(sess.assigned[0]||'缺人'):'');}
         });
         d1.push(tr);d1.push(sr);
       }
@@ -1033,7 +1045,13 @@ async function pushSheets(ctx){
       valueInputOption:'USER_ENTERED', resource:{values:clean(d2)}
     });
     toast('✓ 已寫入 Google Sheet！');
-  }catch(e){toast('❌ 寫入失敗：'+e.message);console.error(e);}
+  }catch(e){
+    let msg = e.message||String(e);
+    if(msg.includes('400')) msg='400 錯誤：請確認 Google Sheet ID 正確，且你有編輯權限';
+    if(msg.includes('403')) msg='403 錯誤：沒有 Spreadsheet 編輯權限，請重新授權';
+    toast('❌ 寫入失敗：'+msg);
+    console.error(e);
+  }
 }
 
 // ═══════════════════════════════════════════════════════
