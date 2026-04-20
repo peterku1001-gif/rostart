@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>邏思起子 · 排班後台 V5.15</title>
+<title>邏思起子 · 排班後台 V5.16</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -299,13 +299,13 @@ const GAPI_CONFIG = {
 // DATA
 // ═══════════════════════════════════════════════════════
 const TH={
-  '創世紀':  {store:'松山',need:1,times:['09:40','11:50','14:00','16:10','18:20']},
-  '血色古堡':{store:'松山',need:1,times:['10:20','12:30','14:40','16:50','19:00']},
-  '傑克':    {store:'信義',need:1,times:['09:30','11:15','12:55','14:35','16:30','18:15','20:00']},
-  '迷霧島':  {store:'信義',need:2,times:['09:45','11:45','13:45','15:45','17:45','19:45']},
-  '辛亥隧道':{store:'信義',need:1,times:['09:40','11:25','13:10','15:00','16:50','18:35','20:20']},
-  '永春醫院':{store:'信義',need:1,times:['09:35','11:40','13:45','15:50','18:20','20:25']},
-  '囚聲':    {store:'信義',need:4,roles:['小天使','郭耀華角色','張阿達角色','黃士坤角色'],times:['09:30','12:55','16:15','19:40']},
+  '創世紀':  {store:'松山',need:1,tolerance:55,times:['09:40','11:50','14:00','16:10','18:20']},
+  '血色古堡':{store:'松山',need:1,tolerance:55,times:['10:20','12:30','14:40','16:50','19:00']},
+  '傑克':    {store:'信義',need:1,tolerance:45,times:['09:30','11:15','12:55','14:35','16:30','18:15','20:00']},
+  '迷霧島':  {store:'信義',need:2,tolerance:50,times:['09:45','11:45','13:45','15:45','17:45','19:45']},
+  '辛亥隧道':{store:'信義',need:1,tolerance:50,times:['09:40','11:25','13:10','15:00','16:50','18:35','20:20']},
+  '永春醫院':{store:'信義',need:1,tolerance:55,times:['09:35','11:40','13:45','15:50','18:20','20:25']},
+  '囚聲':    {store:'信義',need:4,tolerance:55,roles:['小天使','郭耀華角色','張阿達角色','黃士坤角色'],times:['09:30','12:55','16:15','19:40']},
 };
 const TN=Object.keys(TH);
 const DTW=['一','二','三','四','五','六','日'];
@@ -953,7 +953,7 @@ async function syncCal(){
           thInfo.times.forEach((t,idx)=>{
             const tMins = parseInt(t.split(':')[0])*60+parseInt(t.split(':')[1]);
             const diff = Math.abs(tMins-eventMins);
-            if(diff<45 && diff<minDiff){ minDiff=diff; si=idx; }
+            if(diff<thInfo.tolerance && diff<minDiff){ minDiff=diff; si=idx; }
           });
           if(si<0){
             // 找不到對應固定時段 → 建立特殊場次，顯示實際時間，不進媒合
