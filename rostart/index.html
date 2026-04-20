@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>邏思起子 · 排班後台 V5.14</title>
+<title>邏思起子 · 排班後台 V5.15</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -94,11 +94,13 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-seri
 .cpill.ok{background:var(--ok-d);border-left-color:var(--ok);}
 .cpill.miss{background:var(--warn-d);border-left-color:var(--warn);}
 .cpill.pre{background:var(--pend-d);border-left-color:var(--pend);opacity:.75;}
+.cpill.special{background:rgba(245,166,35,.18);border-left-color:#f5a623;}
 .cp-time{font-family:'Space Mono',monospace;font-size:8px;color:var(--t2);}
 .cp-name{font-size:9px;font-weight:600;}
 .cp-name.ok{color:var(--ok);}
 .cp-name.miss{color:var(--warn);}
 .cp-name.pre{color:var(--pend);}
+.cp-name.special{color:#f5a623;}
 .cmore{font-size:8px;color:var(--t3);padding:1px 3px;}
 
 /* ── SCHEDULE ── */
@@ -448,16 +450,20 @@ function renderCal(){
       thInfo.times.forEach((fixedTime, si) => {
         const sess = daySess.find(s => s.si === si);
         if(!sess || sess.booked !== true){
-          // 無預約 → 待預約（淡色）
           pills+=`<div class="cpill pre"><div class="cp-time">${fixedTime}</div><div class="cp-name pre">待預約</div></div>`;
         } else if(sess.ok){
-          // 有預約有排人 → 顯示人名
           const names=sess.assigned.slice(0,2).join('·')+(sess.assigned.length>2?'…':'');
           pills+=`<div class="cpill ok"><div class="cp-time">${sess.time||fixedTime}</div><div class="cp-name ok">${names}</div></div>`;
         } else {
-          // 有預約沒排人 → 缺人
           pills+=`<div class="cpill miss"><div class="cp-time">${sess.time||fixedTime}</div><div class="cp-name miss">缺人</div></div>`;
         }
+      });
+      // 特殊場次（時間在固定時段45分鐘外）
+      Object.values(sessDB).filter(s=>
+        s.special && s.y===cell.date.getFullYear() && s.m===cell.date.getMonth() &&
+        s.d===cell.date.getDate() && s.th===dashTheme
+      ).sort((a,b)=>a.time.localeCompare(b.time)).forEach(sess=>{
+        pills+=`<div class="cpill special"><div class="cp-time">${sess.time} ✦</div><div class="cp-name special">特殊場次</div></div>`;
       });
 
     }
@@ -498,7 +504,7 @@ function doMatch(){
   Object.values(sessDB).forEach(s=>{ s.assigned=[]; s.ok=false; });
 
   const bookedSess = Object.values(sessDB)
-    .filter(s=>s.booked)
+    .filter(s=>s.booked && !s.special)
     .sort((a,b)=>{ // 同天按時間排序，跨天按日期
       const da=new Date(a.y,a.m,a.d), db=new Date(b.y,b.m,b.d);
       return da-db || a.time.localeCompare(b.time);
@@ -949,7 +955,25 @@ async function syncCal(){
             const diff = Math.abs(tMins-eventMins);
             if(diff<45 && diff<minDiff){ minDiff=diff; si=idx; }
           });
-          if(si<0) return; // 找不到對應時段就跳過，不新增
+          if(si<0){
+            // 找不到對應固定時段 → 建立特殊場次，顯示實際時間，不進媒合
+            const actualTime = `${String(evStart.getHours()).padStart(2,'0')}:${String(evStart.getMinutes()).padStart(2,'0')}`;
+            const specialSi = 900 + evStart.getHours()*60 + evStart.getMinutes();
+            const k = sk(evStart.getFullYear(),evStart.getMonth(),evStart.getDate(),themeName,specialSi);
+            if(sessDB[k]) return;
+            const desc2 = ev.description||'';
+            const pm2 = desc2.match(/總人數[：:]\s*(\d+)/);
+            sessDB[k] = {
+              y:evStart.getFullYear(), m:evStart.getMonth(), d:evStart.getDate(),
+              th:themeName, si:specialSi,
+              time:actualTime,
+              store:TH[themeName].store, need:TH[themeName].need,
+              booked:true, players:pm2?parseInt(pm2[1]):2,
+              assigned:[], ok:false, special:true
+            };
+            count++;
+            return;
+          }
 
           const k = sk(evStart.getFullYear(),evStart.getMonth(),evStart.getDate(),themeName,si);
           const desc = ev.description||'';
@@ -1024,6 +1048,13 @@ async function pushSheets(ctx){
         d1.push(tr);d1.push(sr);
       }
       d1.push([]);
+      // 特殊場次（時間不在固定時段內）
+      const specials = Object.values(sessDB).filter(s=>
+        s.special && s.y===date.getFullYear() && s.m===date.getMonth() && s.d===date.getDate()
+      ).sort((a,b)=>a.time.localeCompare(b.time));
+      specials.forEach(s=>{
+        d1.push([`✦ 特殊場次`, s.th, s.time, '需手動排班']);
+      });
     });
     // 員工班表
     let d2=[['員工班表',wkLabel(wkOff)],['姓名','店點',...dates.map((d,i)=>`${DTW[i]} ${fd(d)}`)]];
