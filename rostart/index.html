@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>邏思起子 · 排班後台 V5.12</title>
+<title>邏思起子 · 排班後台 V5.13</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -909,19 +909,13 @@ async function syncCal(){
     return;
   }
 
-  // 顯示讀取動畫
   const syncBtn = document.querySelector('[onclick="syncCal()"]');
   const origText = syncBtn ? syncBtn.textContent : '';
   if(syncBtn){ syncBtn.textContent = '⟳ 同步中...'; syncBtn.style.opacity='0.6'; syncBtn.disabled=true; }
 
   try{
-    // 清除當月與下個月資料
-    const months = [[calY,calM],[calY,calM+1>11?0:calM+1]];
-    const nextY = calM+1>11 ? calY+1 : calY;
-    Object.keys(sessDB).forEach(k=>{
-      const s=sessDB[k];
-      if((s.y===calY&&s.m===calM)||(s.y===nextY&&s.m===(calM+1>11?0:calM+1))) delete sessDB[k];
-    });
+    // 完全清空 sessDB，避免舊資料干擾
+    Object.keys(sessDB).forEach(k=>delete sessDB[k]);
 
     // 同步範圍：當月1日 到 下個月底
     const timeMin = new Date(calY,calM,1).toISOString();
@@ -932,12 +926,10 @@ async function syncCal(){
     let count=0;
     const themeEntries = Object.entries(GAPI_CONFIG.calendars);
 
-    // 依序抓每個日曆（不並行，確保穩定）
+    // 依序抓每個日曆（穩定不並行）
     for(let i=0; i<themeEntries.length; i++){
       const [themeName, calId] = themeEntries[i];
       if(!calId||calId.includes('填入')) continue;
-
-      // 更新按鈕進度
       if(syncBtn) syncBtn.textContent = `⟳ 同步中 ${i+1}/${themeEntries.length}...`;
 
       try{
@@ -946,26 +938,31 @@ async function syncCal(){
           singleEvents:true, orderBy:'startTime', maxResults:500
         });
         (resp.result.items||[]).forEach(ev=>{
-          if(!ev.start) return;
-          if(!ev.start.dateTime) return; // 忽略全天事件
+          if(!ev.start||!ev.start.dateTime) return; // 忽略全天事件
           const evStart = new Date(ev.start.dateTime);
           const thInfo = TH[themeName];
           if(!thInfo) return;
 
+          // 找最近的固定時段（45分鐘內）
           const eventMins = evStart.getHours()*60+evStart.getMinutes();
-          let si = thInfo.times.findIndex(t=>{
+          let si = -1;
+          let minDiff = 999;
+          thInfo.times.forEach((t,idx)=>{
             const tMins = parseInt(t.split(':')[0])*60+parseInt(t.split(':')[1]);
-            return Math.abs(tMins-eventMins)<60;
+            const diff = Math.abs(tMins-eventMins);
+            if(diff<45 && diff<minDiff){ minDiff=diff; si=idx; }
           });
-          if(si<0) si = thInfo.times.length;
+          if(si<0) return; // 找不到對應時段就跳過，不新增
 
           const k = sk(evStart.getFullYear(),evStart.getMonth(),evStart.getDate(),themeName,si);
           const desc = ev.description||'';
           const pm = desc.match(/總人數[：:]\s*(\d+)/);
+          // 如果同一格已有資料就跳過（避免重複）
+          if(sessDB[k]) return;
           sessDB[k] = {
             y:evStart.getFullYear(), m:evStart.getMonth(), d:evStart.getDate(),
             th:themeName, si,
-            time: thInfo.times[si] || `${String(evStart.getHours()).padStart(2,'0')}:${String(evStart.getMinutes()).padStart(2,'0')}`,
+            time: thInfo.times[si], // 永遠用固定時段時間顯示
             store:thInfo.store, need:thInfo.need,
             booked:true, players:pm?parseInt(pm[1]):2,
             assigned:[], ok:false
@@ -976,12 +973,11 @@ async function syncCal(){
     }
 
     updStats(); renderCal();
-    toast(`✓ 同步完成！共 ${count} 個預約場次（當月＋下個月）`);
+    toast(`✓ 同步完成！共 ${count} 個預約場次`);
 
   }catch(e){
     toast('❌ 同步失敗：'+e.message);
   }finally{
-    // 恢復按鈕
     if(syncBtn){ syncBtn.textContent=origText; syncBtn.style.opacity=''; syncBtn.disabled=false; }
   }
 }
