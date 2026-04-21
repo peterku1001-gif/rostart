@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>邏思起子 · 排班後台 V5.19</title>
+<title>邏思起子 · 排班後台 V5.20</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -530,8 +530,8 @@ function renderCal(){
 //   規則10：永春醫院連續場 同一人優先連排，最多3場
 // ═══════════════════════════════════════════════════════
 
-const MAX_DAY = 4;
 const LATE_CUTOFF = '19:30';   // 規則8：幾點後算晚班
+const MAX_CONSEC_DAYS = 6;     // 規則：最多連續上班天數
 const CONSEC_THEMES = {        // 規則9/10：連續場偏好
   '辛亥隧道': {min:2, max:4},
   '永春醫院': {min:2, max:3},
@@ -553,11 +553,11 @@ function doMatch(){
   function score(s, sess, di, dayKey){
     let pts = 0;
 
-    // 規則6：本週班數越少 → 分數越高（均衡）
-    pts += (s.max - s.wk) * 10;
+    // 規則6：當天場數越少 → 分數越高（均衡）
+    const dayUsed = s.dayCount[dayKey] || 0;
+    pts += (s.max - dayUsed) * 10;
 
     // 規則7：避免天地班 — 若當天已有其他場次 → 加分（連在一起比較好）
-    const dayUsed = s.dayCount[dayKey] || 0;
     if(dayUsed > 0) pts += 15;
 
     // 規則8：避免晚接隔天早 — 昨天有排晚班 → 扣分
@@ -565,9 +565,20 @@ function doMatch(){
       const yesterday = new Date(sess.y, sess.m, sess.d);
       yesterday.setDate(yesterday.getDate()-1);
       if(s.lastLate.toDateString()===yesterday.toDateString() && sess.si===0){
-        pts -= 30; // 軟性降低優先級，不是完全排除
+        pts -= 30;
       }
     }
+
+    // 規則：連續上班天數接近上限 → 扣分
+    const sessDate = new Date(sess.y, sess.m, sess.d);
+    let consec = 0;
+    for(let i=1; i<=MAX_CONSEC_DAYS; i++){
+      const prev = new Date(sessDate); prev.setDate(sessDate.getDate()-i);
+      const prevKey = `${prev.getFullYear()}_${prev.getMonth()}_${prev.getDate()}`;
+      if(s.dayCount[prevKey]) consec++;
+      else break;
+    }
+    if(consec >= MAX_CONSEC_DAYS) pts -= 999; // 連續6天了，第7天強制不排
 
     // 規則9/10：連續場偏好
     const rule = CONSEC_THEMES[sess.th];
@@ -575,8 +586,8 @@ function doMatch(){
       const alreadyToday = Object.keys(s.sched).filter(k=>{
         return k.startsWith(`${di}-`) && s.sched[k]===sess.th;
       }).length;
-      if(alreadyToday > 0 && alreadyToday < rule.max) pts += 25; // 已在跑連續場 → 加分繼續
-      if(alreadyToday >= rule.max) pts -= 50; // 超過上限 → 強力降分
+      if(alreadyToday > 0 && alreadyToday < rule.max) pts += 25;
+      if(alreadyToday >= rule.max) pts -= 50;
     }
 
     return pts;
@@ -587,16 +598,25 @@ function doMatch(){
     const di     = dow===0 ? 6 : dow-1;
     const dayKey = `${sess.y}_${sess.m}_${sess.d}`;
 
-    // 硬性過濾（規則1-5）
+    // 硬性過濾（規則1-4）
     let cands = staff.filter(s=>{
       const slotKey = `${di}-${sess.si}`;
       const dayUsed = s.dayCount[dayKey] || 0;
+      // 連續天數檢查
+      const sessDate = new Date(sess.y, sess.m, sess.d);
+      let consec = 0;
+      for(let i=1; i<=MAX_CONSEC_DAYS; i++){
+        const prev = new Date(sessDate); prev.setDate(sessDate.getDate()-i);
+        const prevKey = `${prev.getFullYear()}_${prev.getMonth()}_${prev.getDate()}`;
+        if(s.dayCount[prevKey]) consec++;
+        else break;
+      }
       return (
         s.themes.includes(sess.th) &&
         s.avail[slotKey] &&
         !s.sched[slotKey] &&
-        dayUsed < MAX_DAY &&
-        s.wk < s.max
+        dayUsed < s.max &&
+        consec < MAX_CONSEC_DAYS
       );
     });
 
@@ -755,9 +775,9 @@ function renderSfGrid(){
       </div>
       <div class="sfc-themes">${s.themes.map(t=>`<span class="sft">${t}</span>`).join('')}</div>
       <div class="sfc-stats">
-        <div class="ss"><div class="ss-v" style="color:var(--accent)">${avail}</div><div class="ss-l">可排</div></div>
-        <div class="ss"><div class="ss-v" style="color:var(--ok)">${s.wk||0}</div><div class="ss-l">已排</div></div>
-        <div class="ss"><div class="ss-v">${s.max-(s.wk||0)}</div><div class="ss-l">剩餘</div></div>
+        <div class="ss"><div class="ss-v" style="color:var(--accent)">${avail}</div><div class="ss-l">可排格</div></div>
+        <div class="ss"><div class="ss-v" style="color:var(--ok)">${s.max}</div><div class="ss-l">場/天上限</div></div>
+        <div class="ss"><div class="ss-v" style="color:var(--t2)">6</div><div class="ss-l">天連上限</div></div>
       </div>
     </div>`;
   }).join('');
@@ -766,7 +786,8 @@ function renderSfGrid(){
 function openMo(id){
   const s=staff.find(x=>x.id===id);
   document.getElementById('modal-ttl').textContent=`${s.name} · 員工設定`;
-  const dates=wkDates(wkOff);
+  const moWkOff = moWkOffMap[id] || 0;
+  const dates=wkDates(moWkOff);
 
   // Theme checkboxes
   const themeChecks = TN.map(t=>{
@@ -784,7 +805,7 @@ function openMo(id){
   let html=`
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
     ${(s.stores||[s.store]).map(st=>`<span class="sbadge ${st==='南京'?'松山':st}">${st}店</span>`).join('')}
-    <span style="font-size:10px;color:var(--t2);padding:3px 6px">本週已排 ${s.wk||0} 班</span>
+    <span style="font-size:10px;color:var(--t2);padding:3px 6px">每天上限 ${s.max} 場・最多連續6天</span>
   </div>
 
   <div style="margin-bottom:16px">
@@ -793,16 +814,21 @@ function openMo(id){
   </div>
 
   <div style="margin-bottom:20px">
-    <div style="font-size:11px;font-weight:700;color:var(--t2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">每週班數上限</div>
+    <div style="font-size:11px;font-weight:700;color:var(--t2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">每天最多場數上限</div>
     <div style="display:flex;align-items:center;gap:10px">
       <button onclick="adjMax(${id},-1)" style="width:28px;height:28px;border-radius:6px;border:1px solid var(--b1);background:var(--s2);color:var(--text);cursor:pointer;font-size:16px">−</button>
       <span id="max-val-${id}" style="font-size:20px;font-weight:700;font-family:'Space Mono',monospace;min-width:32px;text-align:center">${s.max}</span>
       <button onclick="adjMax(${id},1)" style="width:28px;height:28px;border-radius:6px;border:1px solid var(--b1);background:var(--s2);color:var(--text);cursor:pointer;font-size:16px">+</button>
-      <span style="font-size:11px;color:var(--t2)">班/週</span>
+      <span style="font-size:11px;color:var(--t2)">場/天（最多連續6天）</span>
     </div>
   </div>
 
-  <div style="font-size:11px;font-weight:700;color:var(--t2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">本週可排時段</div>
+  <div style="font-size:11px;font-weight:700;color:var(--t2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">可排時段</div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+    <button onclick="moWkAdj(${id},-1)" style="width:26px;height:26px;border-radius:5px;border:1px solid var(--b1);background:var(--s2);color:var(--text);cursor:pointer;font-size:13px">‹</button>
+    <span id="mo-wk-lbl-${id}" style="font-size:12px;font-weight:600;min-width:130px;text-align:center">${wkLabel(wkOff)}</span>
+    <button onclick="moWkAdj(${id},1)" style="width:26px;height:26px;border-radius:5px;border:1px solid var(--b1);background:var(--s2);color:var(--text);cursor:pointer;font-size:13px">›</button>
+  </div>
   <div style="overflow-x:auto"><table class="avt"><thead><tr>
     <th>時段</th>${dates.map((d,i)=>`<th>${DTW[i]}<br><span style="font-family:'Space Mono',monospace;font-size:8px">${fd(d)}</span></th>`).join('')}
   </tr></thead><tbody>`;
@@ -824,6 +850,12 @@ function openMo(id){
   document.getElementById('modal-ov').classList.add('on');
 }
 
+let moWkOffMap = {}; // 每個員工 modal 各自的週偏移
+function moWkAdj(id, delta){
+  moWkOffMap[id] = (moWkOffMap[id]||0) + delta;
+  openMo(id);
+}
+
 function toggleAvail(id, k){
   const s = staff.find(x=>x.id===id);
   if(!s || s.sched[k]) return;
@@ -840,7 +872,7 @@ function toggleTheme(id, theme, checked){
 
 function adjMax(id, delta){
   const s = staff.find(x=>x.id===id);
-  s.max = Math.max(1, Math.min(7, s.max + delta));
+  s.max = Math.max(1, Math.min(6, s.max + delta));
   const el = document.getElementById(`max-val-${id}`);
   if(el) el.textContent = s.max;
   renderSfGrid();
