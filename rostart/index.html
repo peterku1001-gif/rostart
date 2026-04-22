@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>邏思起子 · 排班後台 V5.24</title>
+<title>邏思起子 · 排班後台 V5.25</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -622,9 +622,12 @@ function doMatch(){
         const prevKey = `${prev.getFullYear()}_${prev.getMonth()}_${prev.getDate()}`;
         if(s.dayCount[prevKey]) consec++; else break;
       }
+      // avail 查找：支援逐日格式（2026-3-22-2）和週模板格式（1-2）
+      const dateAvailKey = `${sess.y}-${sess.m}-${sess.d}-${sess.si}`;
+      const hasAvail = s.avail[slotKey] || s.avail[dateAvailKey];
       return (
         s.themes.includes(sess.th) &&
-        s.avail[slotKey] &&
+        hasAvail &&
         !s.sched[slotKey] &&
         dayUsed < s.max &&
         consec < MAX_CONSEC_DAYS
