@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>邏思起子 · 填寫可上班時間</title>
+<title>邏思起子 · 填寫可上班時間 V2</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -194,7 +194,8 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC',sans-
 <div class="save-bar">
   <div class="save-status" id="save-status">尚未儲存</div>
   <button class="btn btn-outline btn-sm" onclick="clearWeek()">清除本週</button>
-  <button class="btn btn-success" onclick="saveAndSync()">✓ 儲存並同步 Google Sheets</button>
+  <button class="btn btn-outline btn-sm" onclick="saveDraft()" id="draft-btn">💾 儲存草稿</button>
+  <button class="btn btn-success" onclick="submitFinal()" id="submit-btn">✓ 正式提交</button>
 </div>
 
 <!-- Note modal -->
@@ -213,28 +214,36 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC',sans-
 <div class="toast" id="toast"></div>
 
 <script>
+// ★★★ 部署 Apps Script 後，把網址填在這裡 ★★★
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxIp6jJSVyYbrXWiX1JgykbAOJM_PLuzpjbVYXk9s6DzysYyp90rLXmJRhQnmPJ9oSusg/exec';
+
 // ── DATA ──────────────────────────────────────────────────
 const STAFF_LIST = [
-  { id:1,  name:'阿梅',    store:'信義', themes:['迷霧島'] },
-  { id:2,  name:'逸彤',    store:'信義', themes:['永春醫院','血色古堡'] },
-  { id:3,  name:'七七',    store:'信義', themes:['辛亥隧道','傑克'] },
-  { id:4,  name:'怡琳',    store:'信義', themes:['辛亥隧道'] },
-  { id:5,  name:'聿涵',    store:'信義', themes:['囚聲','迷霧島'] },
-  { id:6,  name:'竹竹',    store:'信義', themes:['囚聲','辛亥隧道','永春醫院'] },
-  { id:7,  name:'彼得',    store:'信義', themes:['囚聲','辛亥隧道'] },
-  { id:8,  name:'布丁',    store:'信義', themes:['囚聲','辛亥隧道','傑克'] },
-  { id:9,  name:'LALA',   store:'信義', themes:['辛亥隧道','永春醫院'] },
-  { id:10, name:'JUDY',   store:'信義', themes:['迷霧島','傑克','囚聲'] },
-  { id:11, name:'思瑋',   store:'信義', themes:['迷霧島'] },
-  { id:12, name:'喬伊',   store:'信義', themes:['迷霧島','傑克'] },
-  { id:13, name:'龎APANG',store:'信義', themes:['迷霧島','傑克'] },
-  { id:14, name:'嘿哩',   store:'信義', themes:['傑克'] },
-  { id:15, name:'花花',   store:'松山', themes:['辛亥隧道','傑克','血色古堡'] },
-  { id:16, name:'GARY',   store:'松山', themes:['創世紀','辛亥隧道'] },
-  { id:17, name:'祥祥',   store:'信義', themes:['永春醫院'] },
-  { id:18, name:'小葵',   store:'信義', themes:['囚聲','迷霧島'] },
-  { id:19, name:'阿咩',   store:'信義', themes:['永春醫院','傑克'] },
-  { id:20, name:'豆干',   store:'信義', themes:['囚聲','傑克','永春醫院'] },
+  { id:1,  name:'阿梅',    store:'信義' },
+  { id:2,  name:'逸彤',    store:'信義' },
+  { id:3,  name:'七七',    store:'信義' },
+  { id:4,  name:'怡琳',    store:'信義' },
+  { id:5,  name:'聿涵',    store:'信義' },
+  { id:6,  name:'竹竹',    store:'信義' },
+  { id:7,  name:'彼得',    store:'信義' },
+  { id:8,  name:'布丁',    store:'信義' },
+  { id:9,  name:'LALA',   store:'信義' },
+  { id:10, name:'JUDY',   store:'信義' },
+  { id:11, name:'思瑋',   store:'信義' },
+  { id:12, name:'喬伊',   store:'信義' },
+  { id:13, name:'龎APANG',store:'信義' },
+  { id:14, name:'嘿哩',   store:'信義' },
+  { id:15, name:'花花',   store:'信義' },
+  { id:16, name:'GARY',   store:'信義' },
+  { id:17, name:'祥祥',   store:'信義' },
+  { id:18, name:'小葵',   store:'信義' },
+  { id:19, name:'阿咩',   store:'信義' },
+  { id:20, name:'豆干',   store:'信義' },
+  { id:21, name:'昕昕',   store:'信義' },
+  { id:22, name:'鴨鴨',   store:'信義' },
+  { id:23, name:'羽絜',   store:'信義' },
+  { id:24, name:'小張',   store:'信義' },
+  { id:25, name:'MOMO',   store:'信義' },
 ];
 
 const TIMES = ['09:00','11:00','13:00','15:00','17:00','19:00','21:00'];
@@ -246,16 +255,7 @@ let weekOffset = 1; // default: next week
 let availability = {}; // key: "staffId-weekOffset-day-time" → { state: 'avail'|'unavail'|'pending'|'scheduled', note: '' }
 let editingSlot = null;
 
-// Simulate some pre-filled scheduled slots
-function getScheduled(staffId, weekOff, day, timeIdx) {
-  // Simulate a few scheduled slots
-  const seed = (staffId * 7 + day * 3 + timeIdx + weekOff) % 11;
-  return seed === 0;
-}
-function getPending(staffId, weekOff, day, timeIdx) {
-  const seed = (staffId * 5 + day * 4 + timeIdx + weekOff) % 13;
-  return seed === 1;
-}
+// 假資料已移除
 
 // ── WEEK HELPERS ──────────────────────────────────────────
 function getWeekDates(offset) {
@@ -285,6 +285,7 @@ function selectStaff(id) {
   document.getElementById('header-name').textContent = currentStaff.name + ' · ' + currentStaff.store + '店';
   renderNameGrid();
   renderGrid();
+  loadDraft();
   document.getElementById('save-status').textContent = `${currentStaff.name} · 尚未儲存`;
 }
 
@@ -324,10 +325,6 @@ function renderGrid() {
       const saved = availability[key];
       let state = saved?.state || 'unavail';
       const note = saved?.note || '';
-
-      // Override with scheduled/pending from server (simulated)
-      if(getScheduled(currentStaff.id, weekOffset, di, ti)) state = 'scheduled';
-      else if(getPending(currentStaff.id, weekOffset, di, ti) && state==='unavail') state = 'pending';
 
       const td = document.createElement('td');
       td.innerHTML = buildSlotBtn(key, state, note, time, di, ti);
@@ -393,10 +390,7 @@ function saveNote() {
 }
 
 // ── SAVE ──────────────────────────────────────────────────
-function saveAndSync() {
-  if(!currentStaff) { showToast('請先選擇你的名字'); return; }
-
-  // Collect data for this staff + week
+function collectRows(isDraft) {
   const dates = getWeekDates(weekOffset);
   const rows = [];
   TIMES.forEach((time, ti) => {
@@ -404,33 +398,104 @@ function saveAndSync() {
       const key = `${currentStaff.id}-${weekOffset}-${di}-${ti}`;
       const state = availability[key]?.state || 'unavail';
       const note = availability[key]?.note || '';
-      rows.push({
-        name: currentStaff.name,
-        store: currentStaff.store,
-        date: `${d.getFullYear()}/${fmtDate(d)}`,
-        day: DAYS_TW[di],
-        time,
-        available: state === 'avail' ? '✓' : state === 'pending' ? '△' : '',
-        note
-      });
+      if(state === 'avail' || state === 'pending') {
+        rows.push([
+          currentStaff.name,
+          currentStaff.store,
+          `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`,
+          DAYS_TW[di],
+          time,
+          '✓',
+          note,
+          isDraft ? '草稿' : '正式'
+        ]);
+      }
     });
   });
+  return rows;
+}
 
-  // In real version: POST to Google Sheets API
-  // For now: simulate + show CSV download
-  const csv = '姓名,店點,日期,星期,時段,可上班,備註\n' +
-    rows.map(r => `${r.name},${r.store},${r.date},${r.day},${r.time},${r.available},${r.note}`).join('\n');
+function saveDraft() {
+  if(!currentStaff) { showToast('請先選擇你的名字'); return; }
+  localStorage.setItem(`draft_${currentStaff.id}_${weekOffset}`, JSON.stringify(availability));
+  document.getElementById('save-status').textContent = `${currentStaff.name} · 草稿已儲存 💾`;
+  showToast('💾 草稿已儲存到本機');
+}
 
-  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `可排時間_${currentStaff.name}_${fmtWeekLabel(weekOffset).replace(/[\/\s·（）]/g,'_')}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+function loadDraft() {
+  if(!currentStaff) return;
+  const saved = localStorage.getItem(`draft_${currentStaff.id}_${weekOffset}`);
+  if(saved) {
+    const data = JSON.parse(saved);
+    Object.assign(availability, data);
+    renderGrid();
+    showToast('💾 已載入草稿');
+  }
+}
 
-  document.getElementById('save-status').textContent = `${currentStaff.name} · 已儲存 ✓ （${new Date().toLocaleTimeString('zh-TW')}）`;
-  showToast('✓ 已儲存並匯出！連接 Google Sheets 後可自動同步');
+async function submitFinal() {
+  if(!currentStaff) { showToast('請先選擇你的名字'); return; }
+  if(!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes('請填入')) {
+    showToast('❌ 系統尚未設定，請聯絡管理員'); return;
+  }
+
+  const rows = collectRows(false);
+  if(rows.length === 0) { showToast('⚠️ 沒有填寫任何可上班時段'); return; }
+
+  const btn = document.getElementById('submit-btn');
+  btn.textContent = '⏳ 上傳中...'; btn.disabled = true;
+
+  try {
+    const dates = getWeekDates(weekOffset);
+    const weekDates = dates.map(d => `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`);
+
+    // 建立橫式格式資料
+    // 格式：姓名, 店點, 時段, 日期1, 日期2, ... 日期7
+    const headerRow = ['姓名', '店點', '時段', ...weekDates];
+    const dataRows = [];
+    TIMES.forEach((time, ti) => {
+      const row = [currentStaff.name, currentStaff.store, time];
+      dates.forEach((d, di) => {
+        const key = `${currentStaff.id}-${weekOffset}-${di}-${ti}`;
+        const state = availability[key]?.state || 'unavail';
+        const note = availability[key]?.note || '';
+        let val = '';
+        if(state === 'avail') val = note ? `✓ ${note}` : '✓';
+        row.push(val);
+      });
+      // 只加有填寫的行（至少一格有 ✓）
+      if(row.slice(3).some(v => v)) dataRows.push(row);
+    });
+
+    const payload = {
+      name: currentStaff.name,
+      store: currentStaff.store,
+      weekDates,
+      headerRow,
+      dataRows,
+      rows // 保留條列式供後台相容
+    };
+
+    const resp = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    const result = await resp.json();
+
+    if(result.success) {
+      localStorage.removeItem(`draft_${currentStaff.id}_${weekOffset}`);
+      const now = new Date().toLocaleString('zh-TW');
+      document.getElementById('save-status').textContent = `${currentStaff.name} · 已正式提交 ✓ ${now}`;
+      showToast(`✓ 提交成功！共 ${result.count} 筆可上班時段`);
+    } else {
+      showToast('❌ 上傳失敗：' + (result.error || '未知錯誤'));
+    }
+  } catch(e) {
+    showToast('❌ 連線失敗，請稍後再試');
+    console.error(e);
+  } finally {
+    btn.textContent = '✓ 正式提交'; btn.disabled = false;
+  }
 }
 
 function clearWeek() {
@@ -451,8 +516,9 @@ function showToast(msg) {
 
 // ── INIT ──────────────────────────────────────────────────
 renderNameGrid();
-// Default week label
 document.getElementById('week-label-main').textContent = '← 請先選擇你的名字';
+
+// Apps Script 模式：不需要 GAPI 授權
 </script>
 </body>
 </html>

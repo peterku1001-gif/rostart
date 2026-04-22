@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>邏思起子 · 排班後台 V5.20</title>
+<title>邏思起子 · 排班後台 V5.23</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -208,6 +208,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-seri
   <div class="hdr-btns">
     <button id="auth-btn" class="btn btn-ghost btn-sm" onclick="requestAuth()">🔑 Google 授權</button>
     <button class="btn btn-ghost btn-sm" onclick="syncCal()">⟳ 同步日曆</button>
+    <button class="btn btn-ghost btn-sm" onclick="syncStaffAvail()">👥 同步員工班表</button>
     <button class="btn btn-magic btn-sm" onclick="doMatch()">✦ 一鍵媒合</button>
   </div>
 </div>
@@ -305,7 +306,7 @@ const TH={
   '迷霧島':  {store:'信義',need:2,tolerance:50,times:['09:45','11:45','13:45','15:45','17:45','19:45']},
   '辛亥隧道':{store:'信義',need:1,tolerance:50,times:['09:40','11:25','13:10','15:00','16:50','18:35','20:20']},
   '永春醫院':{store:'信義',need:1,tolerance:55,times:['09:35','11:40','13:45','15:50','18:20','20:25']},
-  '囚聲':    {store:'信義',need:4,tolerance:55,roles:['囚聲','郭耀華','張阿達','黃士坤'],times:['09:30','12:55','16:15','19:40']},
+  '囚聲':    {store:'信義',need:2,tolerance:55,roles:['囚聲','郭耀華','張阿達','黃士坤'],times:['09:30','12:55','16:15','19:40']},
 };
 const TN=Object.keys(TH);
 const DTW=['一','二','三','四','五','六','日'];
@@ -538,78 +539,88 @@ const CONSEC_THEMES = {        // 規則9/10：連續場偏好
 };
 
 function doMatch(){
-  // 重置
-  staff.forEach(s=>{ s.sched={}; s.wk=0; s.dayCount={}; s.lastLate=null; });
-  Object.values(sessDB).forEach(s=>{ s.assigned=[]; s.ok=false; });
+  // 只重置未鎖定的場次
+  staff.forEach(s=>{ s.dayCount={}; s.lastLate=null; s.dayStore={}; });
+  // 保留已鎖定場次的 dayCount
+  Object.values(sessDB).forEach(s=>{
+    if(s.locked) return; // 鎖定的不動
+    s.assigned=[]; s.ok=false;
+  });
+  // 重建已鎖定場次的 dayCount/dayStore
+  Object.values(sessDB).filter(s=>s.locked&&s.booked).forEach(sess=>{
+    const dayKey=`${sess.y}_${sess.m}_${sess.d}`;
+    sess.assigned.forEach(name=>{
+      const s=staff.find(x=>x.name===name);
+      if(!s) return;
+      s.dayCount[dayKey]=(s.dayCount[dayKey]||0)+1;
+      s.dayStore[dayKey]=TH[sess.th].store;
+    });
+  });
 
   const bookedSess = Object.values(sessDB)
-    .filter(s=>s.booked && !s.special)
-    .sort((a,b)=>{ // 同天按時間排序，跨天按日期
+    .filter(s=>s.booked && !s.special && !s.locked)
+    .sort((a,b)=>{
       const da=new Date(a.y,a.m,a.d), db=new Date(b.y,b.m,b.d);
       return da-db || a.time.localeCompare(b.time);
     });
 
-  // ── 計分函式（軟性規則加權）──
+  // ── 計分函式 ──
   function score(s, sess, di, dayKey){
     let pts = 0;
-
-    // 規則6：當天場數越少 → 分數越高（均衡）
     const dayUsed = s.dayCount[dayKey] || 0;
-    pts += (s.max - dayUsed) * 10;
-
-    // 規則7：避免天地班 — 若當天已有其他場次 → 加分（連在一起比較好）
-    if(dayUsed > 0) pts += 15;
-
-    // 規則8：避免晚接隔天早 — 昨天有排晚班 → 扣分
+    const totalAssigned = Object.values(s.dayCount).reduce((a,b)=>a+b, 0);
+    pts += Math.max(0, 30 - totalAssigned * 5); // 總班少優先
+    pts += (s.max - dayUsed) * 8;
+    if(dayUsed === 1) pts += 8;
+    if(dayUsed === 2) pts += 3;
+    if(dayUsed >= 3) pts -= 12;
+    if(dayUsed > 0) pts += 5;
     if(s.lastLate){
       const yesterday = new Date(sess.y, sess.m, sess.d);
       yesterday.setDate(yesterday.getDate()-1);
-      if(s.lastLate.toDateString()===yesterday.toDateString() && sess.si===0){
-        pts -= 30;
-      }
+      if(s.lastLate.toDateString()===yesterday.toDateString() && sess.si===0) pts -= 30;
     }
-
-    // 規則：連續上班天數接近上限 → 扣分
     const sessDate = new Date(sess.y, sess.m, sess.d);
     let consec = 0;
     for(let i=1; i<=MAX_CONSEC_DAYS; i++){
       const prev = new Date(sessDate); prev.setDate(sessDate.getDate()-i);
       const prevKey = `${prev.getFullYear()}_${prev.getMonth()}_${prev.getDate()}`;
-      if(s.dayCount[prevKey]) consec++;
-      else break;
+      if(s.dayCount[prevKey]) consec++; else break;
     }
-    if(consec >= MAX_CONSEC_DAYS) pts -= 999; // 連續6天了，第7天強制不排
-
-    // 規則9/10：連續場偏好
+    if(consec >= MAX_CONSEC_DAYS) pts -= 999;
     const rule = CONSEC_THEMES[sess.th];
     if(rule){
-      const alreadyToday = Object.keys(s.sched).filter(k=>{
-        return k.startsWith(`${di}-`) && s.sched[k]===sess.th;
-      }).length;
+      const alreadyToday = Object.keys(s.sched).filter(k=>k.startsWith(`${di}-`)&&s.sched[k]===sess.th).length;
       if(alreadyToday > 0 && alreadyToday < rule.max) pts += 25;
       if(alreadyToday >= rule.max) pts -= 50;
     }
-
     return pts;
+  }
+
+  // ── 計算每個人還有多少可排時段（限制最多的人優先）──
+  function availCount(s){
+    return Object.values(s.avail).filter(Boolean).length;
   }
 
   bookedSess.forEach(sess=>{
     const dow    = new Date(sess.y, sess.m, sess.d).getDay();
     const di     = dow===0 ? 6 : dow-1;
     const dayKey = `${sess.y}_${sess.m}_${sess.d}`;
+    const sessStore = TH[sess.th].store;
 
-    // 硬性過濾（規則1-4）
+    // 硬性過濾
     let cands = staff.filter(s=>{
       const slotKey = `${di}-${sess.si}`;
       const dayUsed = s.dayCount[dayKey] || 0;
-      // 連續天數檢查
+      // 同一天同一店限制
+      if(s.dayStore[dayKey] && s.dayStore[dayKey] !== sessStore) return false;
+      // 連續天數
       const sessDate = new Date(sess.y, sess.m, sess.d);
       let consec = 0;
       for(let i=1; i<=MAX_CONSEC_DAYS; i++){
         const prev = new Date(sessDate); prev.setDate(sessDate.getDate()-i);
         const prevKey = `${prev.getFullYear()}_${prev.getMonth()}_${prev.getDate()}`;
-        if(s.dayCount[prevKey]) consec++;
-        else break;
+        if(s.dayCount[prevKey]) consec++; else break;
       }
       return (
         s.themes.includes(sess.th) &&
@@ -620,20 +631,21 @@ function doMatch(){
       );
     });
 
-    // 軟性排序（規則6-10）
-    cands.sort((a,b) => score(b,sess,di,dayKey) - score(a,sess,di,dayKey));
+    // 先依「可排時段少的人優先」排序，再用 score 排
+    cands.sort((a,b)=>{
+      const scoreDiff = score(b,sess,di,dayKey) - score(a,sess,di,dayKey);
+      if(Math.abs(scoreDiff) > 5) return scoreDiff;
+      return availCount(a) - availCount(b); // 可排少的優先
+    });
 
-    // 分配
     cands.slice(0, sess.need).forEach(s=>{
       const slotKey = `${di}-${sess.si}`;
       s.sched[slotKey] = sess.th;
       s.wk++;
       s.dayCount[dayKey] = (s.dayCount[dayKey]||0) + 1;
+      s.dayStore[dayKey] = sessStore; // 記錄今天在哪個店
       sess.assigned.push(s.name);
-      // 規則8：記錄是否排了晚班
-      if(sess.time >= LATE_CUTOFF){
-        s.lastLate = new Date(sess.y, sess.m, sess.d);
-      }
+      if(sess.time >= LATE_CUTOFF) s.lastLate = new Date(sess.y, sess.m, sess.d);
     });
 
     sess.ok = sess.assigned.length >= sess.need;
@@ -642,7 +654,6 @@ function doMatch(){
   const total   = bookedSess.length;
   const matched = bookedSess.filter(s=>s.ok).length;
   const missing = bookedSess.filter(s=>!s.ok).length;
-
   updStats(); renderCal(); renderSchedTable(); renderSfGrid();
   toast(`✦ 媒合完成！${matched}/${total} 場次配妥${missing>0?`，${missing} 場仍缺人`:' ✓'}`);
 }
@@ -731,11 +742,11 @@ function renderSchedTable(){
         if(!sess){
           roles.forEach(()=>{html+=`<td class="stcell"><span class="chip-none">—</span></td>`;});
         }else{
-          roles.forEach((_,ri)=>{html+=`<td class="stcell">${staffChip(sess.assigned[ri],t,sess.booked)}</td>`;});
+          roles.forEach((_,ri)=>{html+=`<td class="stcell">${staffChip(sess.assigned[ri],t,sess.booked,sess,k)}</td>`;});
         }
       }else{
         if(!sess){html+=`<td class="stcell"><span class="chip-none">—</span></td>`;}
-        else{html+=`<td class="stcell">${staffChip(sess.assigned[0],t,sess.booked)}</td>`;}
+        else{html+=`<td class="stcell">${staffChip(sess.assigned[0],t,sess.booked,sess,k)}</td>`;}
       }
     });
     html+=`</tr>`;
@@ -744,12 +755,22 @@ function renderSchedTable(){
   document.getElementById('st-wrap').innerHTML=html;
 }
 
-function staffChip(name,theme,booked){
+function staffChip(name,theme,booked,sess,k){
   if(!booked)return`<span class="chip-delta">△</span>`;
   if(!name)return`<span class="chip-empty">缺人</span>`;
   const store=TH[theme].store;
   const cls=theme==='囚聲'?'chip-囚聲':`chip-${store}`;
-  return`<span class="chip-staff ${cls}">${name}</span>`;
+  const locked=sess&&sess.locked;
+  const lockIcon=locked?'🔒':'🔓';
+  const lockStyle=`font-size:9px;cursor:pointer;opacity:0.6;margin-left:3px`;
+  return`<span class="chip-staff ${cls}">${name}<span style="${lockStyle}" onclick="toggleLock('${k}')" title="${locked?'解除鎖定':'鎖定此排班'}">${lockIcon}</span></span>`;
+}
+
+function toggleLock(k){
+  if(!sessDB[k]) return;
+  sessDB[k].locked = !sessDB[k].locked;
+  renderSchedTable();
+  toast(sessDB[k].locked ? '🔒 已鎖定，媒合不會更動' : '🔓 已解鎖，下次媒合可重排');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -826,7 +847,7 @@ function openMo(id){
   <div style="font-size:11px;font-weight:700;color:var(--t2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">可排時段</div>
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
     <button onclick="moWkAdj(${id},-1)" style="width:26px;height:26px;border-radius:5px;border:1px solid var(--b1);background:var(--s2);color:var(--text);cursor:pointer;font-size:13px">‹</button>
-    <span id="mo-wk-lbl-${id}" style="font-size:12px;font-weight:600;min-width:130px;text-align:center">${wkLabel(wkOff)}</span>
+    <span id="mo-wk-lbl-${id}" style="font-size:12px;font-weight:600;min-width:130px;text-align:center">${wkLabel(moWkOff)}</span>
     <button onclick="moWkAdj(${id},1)" style="width:26px;height:26px;border-radius:5px;border:1px solid var(--b1);background:var(--s2);color:var(--text);cursor:pointer;font-size:13px">›</button>
   </div>
   <div style="overflow-x:auto"><table class="avt"><thead><tr>
@@ -836,12 +857,14 @@ function openMo(id){
   T7.forEach((time,ti)=>{
     html+=`<tr><td class="tl">${time}</td>`;
     for(let di=0;di<7;di++){
-      const k=`${di}-${ti}`;
-      const isSk=!!s.sched[k];
-      const isAv=s.avail[k];
+      const d=dates[di];
+      const dateKey=`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${ti}`;
+      const dowKey=`${d.getDay()===0?6:d.getDay()-1}-${ti}`; // 相容舊格式
+      const isSk=!!s.sched[dowKey];
+      const isAv=s.avail[dateKey]!==undefined ? s.avail[dateKey] : s.avail[dowKey];
       const cls=isSk?'sk':isAv?'av':'no';
-      const click=isSk?'':`onclick="toggleAvail(${s.id},'${k}')" style="cursor:pointer"`;
-      html+=`<td><div class="avslot ${cls}" ${click}>${isSk?s.sched[k]:isAv?'可':''}</div></td>`;
+      const click=isSk?'':`onclick="toggleAvail(${s.id},'${dateKey}')" style="cursor:pointer"`;
+      html+=`<td><div class="avslot ${cls}" ${click}>${isSk?s.sched[dowKey]:isAv?'可':''}</div></td>`;
     }
     html+=`</tr>`;
   });
@@ -1083,6 +1106,85 @@ async function syncCal(){
   }
 }
 
+async function syncStaffAvail(){
+  if(!accessToken){requestAuth();return;}
+  if(!GAPI_CONFIG.sheetId||GAPI_CONFIG.sheetId.includes('填入')){
+    toast('❌ 請先填入 Google Sheet ID'); return;
+  }
+  toast('👥 同步員工班表中...');
+  try{
+    const sid=GAPI_CONFIG.sheetId;
+    let resp;
+    try{
+      resp = await gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId:sid, range:"'員工可排'!A:Z"
+      });
+    }catch(e){
+      toast('⚠️ 找不到「員工可排」分頁，請確認員工已上傳班表');
+      return;
+    }
+    const rows = resp.result.values||[];
+    if(rows.length<1){ toast('⚠️ 員工班表是空的'); return; }
+
+    // 讀取橫式格式
+    // header 行：姓名, 店點, 時段, 日期1, 日期2...
+    // 資料行：姓名/空, 店點/空, 時段, 可上班值...
+    const newAvail = {};
+    let currentName = '';
+    let currentDates = []; // 這個區塊的日期列表
+
+    rows.forEach(row=>{
+      if(!row || row.length < 4) return;
+      const col0 = String(row[0]||'').trim();
+      const col2 = String(row[2]||'').trim();
+
+      // Header 行：第3欄是「時段」
+      if(col2 === '時段'){
+        currentName = col0 || currentName;
+        currentDates = row.slice(3).map(d=>String(d||'').trim());
+        return;
+      }
+
+      // 資料行：第3欄是時間格式
+      if(!currentName) return;
+      if(!T7.includes(col2)) return;
+      const time = col2;
+      const ti = T7.indexOf(time);
+
+      row.slice(3).forEach((val, di)=>{
+        if(!val || !String(val).includes('✓')) return;
+        const dateStr = currentDates[di];
+        if(!dateStr) return;
+        // 日期格式 2026/4/22
+        const parts = dateStr.split('/');
+        if(parts.length < 3) return;
+        const y = parseInt(parts[0]);
+        const m = parseInt(parts[1]) - 1; // JS month 0-indexed
+        const d = parseInt(parts[2]);
+        if(isNaN(y)||isNaN(m)||isNaN(d)) return;
+        const dateKey = `${y}-${m}-${d}-${ti}`;
+        if(!newAvail[currentName]) newAvail[currentName]={};
+        newAvail[currentName][dateKey] = true;
+      });
+    });
+
+    // 更新員工 avail
+    let updated = 0;
+    staff.forEach(s=>{
+      if(newAvail[s.name]){
+        // 只更新這份資料裡有的日期，不清除其他資料
+        Object.assign(s.avail, newAvail[s.name]);
+        updated++;
+      }
+    });
+    renderSfGrid();
+    toast(`✓ 同步完成！更新 ${updated} 位員工班表`);
+  }catch(e){
+    toast('❌ 同步員工班表失敗：'+e.message);
+    console.error(e);
+  }
+}
+
 async function pushSheets(ctx){
   if(typeof GAPI_CONFIG === 'undefined' || !GAPI_CONFIG.clientId){
     toast('請先填入 Google API 設定'); return;
@@ -1149,11 +1251,11 @@ async function pushSheets(ctx){
     const clean=rows=>rows.map(row=>row.map(cell=>cell===null||cell===undefined?'':String(cell)));
     await gapi.client.sheets.spreadsheets.values.update({
       spreadsheetId:sid, range:"'每日排班'!A1",
-      valueInputOption:'USER_ENTERED', resource:{values:clean(d1)}
+      valueInputOption:'RAW', resource:{values:clean(d1)}
     });
     await gapi.client.sheets.spreadsheets.values.update({
       spreadsheetId:sid, range:"'員工班表'!A1",
-      valueInputOption:'USER_ENTERED', resource:{values:clean(d2)}
+      valueInputOption:'RAW', resource:{values:clean(d2)}
     });
     toast('✓ 已寫入 Google Sheet！');
   }catch(e){
