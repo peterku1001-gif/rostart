@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>邏思起子 · 填寫可上班時間 V3</title>
+<title>邏思起子 · 填寫可上班時間 V4</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -285,6 +285,7 @@ function selectStaff(id) {
   document.getElementById('header-name').textContent = currentStaff.name + ' · ' + currentStaff.store + '店';
   renderNameGrid();
   renderGrid();
+  document.getElementById('special-note').value = ''; // 清空備註
   loadDraft();
   document.getElementById('save-status').textContent = `${currentStaff.name} · 尚未儲存`;
 }
@@ -417,7 +418,8 @@ function collectRows(isDraft) {
 
 function saveDraft() {
   if(!currentStaff) { showToast('請先選擇你的名字'); return; }
-  localStorage.setItem(`draft_${currentStaff.id}_${weekOffset}`, JSON.stringify(availability));
+  const note = document.getElementById('special-note').value.trim();
+  localStorage.setItem(`draft_${currentStaff.id}_${weekOffset}`, JSON.stringify({availability, note}));
   document.getElementById('save-status').textContent = `${currentStaff.name} · 草稿已儲存 💾`;
   showToast('💾 草稿已儲存到本機');
 }
@@ -427,7 +429,13 @@ function loadDraft() {
   const saved = localStorage.getItem(`draft_${currentStaff.id}_${weekOffset}`);
   if(saved) {
     const data = JSON.parse(saved);
-    Object.assign(availability, data);
+    // 支援新格式 {availability, note} 和舊格式 {直接是availability}
+    if(data.availability) {
+      Object.assign(availability, data.availability);
+      document.getElementById('special-note').value = data.note || '';
+    } else {
+      Object.assign(availability, data);
+    }
     renderGrid();
     showToast('💾 已載入草稿');
   }
@@ -485,6 +493,7 @@ async function submitFinal() {
 
     if(result.success) {
       localStorage.removeItem(`draft_${currentStaff.id}_${weekOffset}`);
+      document.getElementById('special-note').value = ''; // 清空備註
       const now = new Date().toLocaleString('zh-TW');
       document.getElementById('save-status').textContent = `${currentStaff.name} · 已正式提交 ✓ ${now}`;
       showToast(`✓ 提交成功！共 ${result.count} 筆可上班時段`);
