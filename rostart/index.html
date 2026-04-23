@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>邏思起子 · 排班後台 V5.27</title>
+<title>邏思起子 · 排班後台 V5.28</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -1221,7 +1221,6 @@ async function writeBackToStaff(){
   }
   toast('📋 寫回員工班表中...');
   try{
-    const sid = GAPI_CONFIG.sheetId;
     // 收集媒合結果
     const results = [];
     const dates = wkDates(wkOff);
@@ -1243,91 +1242,20 @@ async function writeBackToStaff(){
 
     if(results.length===0){ toast('⚠️ 沒有媒合結果，請先執行一鍵媒合'); return; }
 
-    // 週日期列表
     const weekDates = dates.map(d=>`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`);
 
-    // 確認「員工可排」分頁存在
-    const meta = await gapi.client.sheets.spreadsheets.get({spreadsheetId:sid});
-    const sheetInfo = (meta.result.sheets||[]).find(s=>s.properties.title==='員工可排');
-    if(!sheetInfo){ toast('⚠️ 找不到「員工可排」分頁，請員工先提交班表'); return; }
-
-    const sheetId = sheetInfo.properties.sheetId;
-    const TIMES = ['09:00','11:00','13:00','15:00','17:00','19:00','21:00'];
-
-    // 讀取現有資料找到每個人的行位置
-    const existing = await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId:sid, range:"'員工可排'!A:Z"
+    // 透過 Apps Script 寫回
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxIp6jJSVyYbrXWiX1JgykbAOJM_PLuzpjbVYXk9s6DzysYyp90rLXmJRhQnmPJ9oSusg/exec';
+    const resp = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ type: 'writeBack', results, weekDates })
     });
-    const rows = existing.result.values||[];
-
-    // 找日期欄位對照
-    let dateRow = null;
-    for(let i=0;i<rows.length;i++){
-      if(rows[i] && rows[i].some(v=>weekDates.includes(String(v).trim()))){
-        dateRow = rows[i]; break;
-      }
+    const result = await resp.json();
+    if(result.success !== false){
+      toast(`✓ 已寫回 ${results.length} 筆排班結果！`);
+    } else {
+      toast('❌ 寫回失敗：' + (result.error||'未知錯誤'));
     }
-    if(!dateRow){ toast('⚠️ Sheet 上找不到這週的日期，請員工先提交班表'); return; }
-
-    // 找每個人的行
-    const personRows = {};
-    let currentName = '';
-    rows.forEach((row,i)=>{
-      const col0 = String(row[0]||'').trim();
-      if(col0 && col0 !== '姓名') currentName = col0;
-      if(currentName) personRows[currentName] = personRows[currentName] || i+1;
-    });
-
-    // 建立 batchUpdate 請求
-    const requests = [];
-    const THEME_COLORS = {
-      '創世紀': {bg:{red:0.435,green:0.659,blue:0.863}, font:{red:0,green:0,blue:0}},
-      '血色古堡':{bg:{red:0.918,green:0.600,blue:0.600}, font:{red:0,green:0,blue:0}},
-      '傑克':   {bg:{red:0.788,green:0.663,blue:0.431}, font:{red:0,green:0,blue:0}},
-      '迷霧島': {bg:{red:0.576,green:0.769,blue:0.490}, font:{red:0,green:0,blue:0}},
-      '辛亥隧道':{bg:{red:0.965,green:0.698,blue:0.420}, font:{red:0,green:0,blue:0}},
-      '永春醫院':{bg:{red:0.271,green:0.506,blue:0.557}, font:{red:1,green:1,blue:1}},
-      '囚聲':   {bg:{red:0.557,green:0.486,blue:0.765}, font:{red:1,green:1,blue:1}},
-    };
-
-    results.forEach(r=>{
-      const pRow = personRows[r.name];
-      if(!pRow) return;
-      const ti = TIMES.indexOf(r.time);
-      if(ti<0) return;
-      const di = dateRow.indexOf(r.date.replace(/\//g,'/'))-1; // -1 for 0-index, then +2 for col offset
-      const actualColIdx = dateRow.findIndex(v=>String(v).trim()===r.date);
-      if(actualColIdx<0) return;
-
-      const rowIdx = pRow + ti - 1; // 0-indexed
-      const colIdx = actualColIdx; // 0-indexed
-
-      const color = THEME_COLORS[r.theme];
-      if(!color) return;
-
-      requests.push({
-        updateCells:{
-          rows:[{values:[{
-            userEnteredValue:{stringValue: r.theme},
-            userEnteredFormat:{
-              backgroundColor: color.bg,
-              textFormat:{ foregroundColor: color.font, bold:true, fontSize:9 },
-              horizontalAlignment:'CENTER'
-            }
-          }]}],
-          fields:'userEnteredValue,userEnteredFormat',
-          start:{sheetId, rowIndex:rowIdx, columnIndex:colIdx}
-        }
-      });
-    });
-
-    if(requests.length>0){
-      await gapi.client.sheets.spreadsheets.batchUpdate({
-        spreadsheetId:sid, resource:{requests}
-      });
-    }
-
-    toast(`✓ 已寫回 ${results.length} 筆排班結果到員工班表！`);
   }catch(e){
     toast('❌ 寫回失敗：'+e.message);
     console.error(e);

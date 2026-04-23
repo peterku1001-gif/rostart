@@ -251,7 +251,7 @@ const DAYS_TW = ['一','二','三','四','五','六','日'];
 
 // State
 let currentStaff = null;
-let weekOffset = 1; // default: next week
+let weekOffset = 0; // 預設顯示本週
 let availability = {}; // key: "staffId-weekOffset-day-time" → { state: 'avail'|'unavail'|'pending'|'scheduled', note: '' }
 let editingSlot = null;
 
@@ -291,7 +291,7 @@ function selectStaff(id) {
 
 function changeWeek(delta) {
   if(!currentStaff) { showToast('請先選擇你的名字'); return; }
-  weekOffset = Math.max(1, Math.min(4, weekOffset + delta));
+  weekOffset = Math.max(0, Math.min(4, weekOffset + delta));
   renderGrid();
 }
 
@@ -473,7 +473,8 @@ async function submitFinal() {
       weekDates,
       headerRow,
       dataRows,
-      rows // 保留條列式供後台相容
+      rows, // 保留條列式供後台相容
+      specialNote: document.getElementById('special-note').value.trim()
     };
 
     const resp = await fetch(APPS_SCRIPT_URL, {
