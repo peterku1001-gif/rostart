@@ -471,8 +471,7 @@ async function submitFinal() {
         if(state === 'avail') val = note ? `✓ ${note}` : '✓';
         row.push(val);
       });
-      // 只加有填寫的行（至少一格有 ✓）
-      if(row.slice(3).some(v => v)) dataRows.push(row);
+      dataRows.push(row); // 所有7行都送出，不過濾
     });
 
     const payload = {
